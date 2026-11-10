@@ -13,6 +13,7 @@ export const Calendario = {
     const y = this.cursor.getFullYear();
     const m = this.cursor.getMonth();
     const rows = await fetchEventStatusBetween(
+      window.ACTIVE_CHURCH_ID,
       new Date(y, m - 1, 1).toISOString(),
       new Date(y, m + 1, 0, 23, 59).toISOString()
     );
@@ -34,11 +35,11 @@ export const Calendario = {
 
     el.innerHTML = `
       <h1>Calendário</h1>
-      <div class="row" style="justify-content:center;gap:8px;margin-bottom:12px">
-        <button class="btn small ghost" id="cal-prev">‹</button>
-        <strong style="min-width:150px;text-align:center">${title} ${y}</strong>
-        <button class="btn small ghost" id="cal-next">›</button>
-        <button class="btn small ghost" id="cal-today">Hoje</button>
+      <div class="cal-nav">
+        <button class="btn small ghost" id="cal-prev" title="Mês anterior">‹</button>
+        <strong class="cal-month">${title} ${y}</strong>
+        <button class="btn small ghost" id="cal-next" title="Mês seguinte">›</button>
+        <button class="btn small" id="cal-today">Hoje</button>
       </div>
       <div class="cal-head">${DOW.map((d) => `<span class="dow">${d}</span>`).join('')}</div>
       <div class="cal-grid">

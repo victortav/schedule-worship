@@ -12,7 +12,7 @@ export const MeuAgenda = {
   async render(el) {
     const ME = window.ME;
     const [status, instruments, mi, absences] = await Promise.all([
-      fetchEventStatus(), fetchInstruments(), fetchMemberInstruments(), fetchAbsences(),
+      fetchEventStatus(window.ACTIVE_CHURCH_ID), fetchInstruments(), fetchMemberInstruments(), fetchAbsences(),
     ]);
     const ids = status.map((r) => r.id);
     const mine = await fetchMyConfirmations(ME, ids);

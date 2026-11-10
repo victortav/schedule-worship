@@ -1,11 +1,19 @@
 -- =====================================================================
--- AGENDA DE ENSAIOS — seed de DEV (IDEMPOTENTE)
+-- AGENDA DE ENSAIOS — seed de DEV (IDEMPOTENTE) — multi-igreja
 -- ⚠️ Somente para o ambiente local. NÃO rode em produção.
--- Cria 8 usuários de teste no GoTrue (senha: 123456) + eventos de exemplo.
+-- Cria 2 igrejas, 8 usuários de teste (senha 123456) + eventos e repertório.
 -- O trigger on_auth_user_created cria os profiles automaticamente.
 -- =====================================================================
 
 create extension if not exists pgcrypto; -- crypt()/gen_salt() para as senhas
+
+-- ---------------------------------------------------------------------
+-- 0) Igrejas (tenant)
+-- ---------------------------------------------------------------------
+insert into public.churches (id, name) values
+  ('c0000000-0000-0000-0000-000000000001', 'Anglicana Libertador'),
+  ('c0000000-0000-0000-0000-000000000002', 'Catedral Comunhão')
+on conflict (id) do update set name = excluded.name;
 
 -- ---------------------------------------------------------------------
 -- 1) Usuários de teste (UUIDs fixos p/ referências determinísticas)
@@ -41,7 +49,6 @@ begin
               now(), now());
     end if;
     -- GoTrue (v2.19x) exige 1 identity por provider p/ login com senha
-    -- (mesmo formato criado pela API: provider_id = uuid do user)
     insert into auth.identities (user_id, provider, provider_id, identity_data, created_at, updated_at)
     values (ids[i], 'email', ids[i]::text,
             jsonb_build_object('sub', ids[i]::text, 'email', emails[i],
@@ -49,16 +56,12 @@ begin
             now(), now())
     on conflict (provider_id, provider) do nothing;
   end loop;
-  -- instance_id: o GoTrue SEMPRE busca com instance_id = uuid_nil;
-  -- NULL deixa o user invisível p/ login ("Invalid login credentials")
+  -- instance_id: o GoTrue SEMPRE busca com instance_id = uuid_nil
   update auth.users
   set instance_id = '00000000-0000-0000-0000-000000000000'
   where id = any (ids)
     and instance_id is distinct from '00000000-0000-0000-0000-000000000000';
-
-  -- GoTrue v2.197 faz Scan das colunas de token como string: NULL quebra o
-  -- login ("Scan error on column ... converting NULL to string is unsupported").
-  -- Usuários criados pela API nascem com '' — replicar nos do seed.
+  -- GoTrue v2.197: colunas de token precisam ser '' (não NULL)
   update auth.users
   set confirmation_token     = coalesce(confirmation_token, ''),
       recovery_token         = coalesce(recovery_token, ''),
@@ -67,95 +70,132 @@ begin
   where id = any (ids);
 end $$;
 
--- Ana é a admin
-update public.profiles set role = 'admin'
+-- Garante os profiles dos usuários de teste (o trigger só cria no 1º insert em
+-- auth.users; ao recriar o schema public os profiles precisam ser recriados)
+insert into public.profiles (id, full_name) values
+  ('a0000000-0000-0000-0000-000000000001','Ana Souza'),
+  ('a0000000-0000-0000-0000-000000000002','Bruno Lima'),
+  ('a0000000-0000-0000-0000-000000000003','Carla Dias'),
+  ('a0000000-0000-0000-0000-000000000004','Diego Costa'),
+  ('a0000000-0000-0000-0000-000000000005','Elisa Rocha'),
+  ('a0000000-0000-0000-0000-000000000006','Felipe Nunes'),
+  ('a0000000-0000-0000-0000-000000000007','Gabriela Melo'),
+  ('a0000000-0000-0000-0000-000000000008','Henrique Alves')
+on conflict (id) do nothing;
+
+-- Ana é a admin de SISTEMA (global)
+update public.profiles set role = 'system_admin'
 where id = 'a0000000-0000-0000-0000-000000000001';
 
 -- ---------------------------------------------------------------------
--- 2) Instrumentos de cada membro
---    (1=Voz, 2=Violão, 3=Teclado, 4=Baixo, 5=Bateria, 6=Guitarra)
+-- 2) Membros por igreja (N:N) — papel por igreja
+--    Anglicana Libertador = todos os 8 (ana é admin da igreja)
+--    Catedral Comunhão    = carla (admin), diego e felipe (membros)
+--    -> carla/diego/felipe participam de 2 igrejas (teste do seletor)
+-- ---------------------------------------------------------------------
+insert into public.church_members (church_id, profile_id, role) values
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'admin'),
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'membro'),
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 'membro'),
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000004', 'membro'),
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000005', 'membro'),
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000006', 'membro'),
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000007', 'membro'),
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000008', 'membro'),
+  ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000003', 'admin'),
+  ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000004', 'membro'),
+  ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000006', 'membro')
+on conflict (church_id, profile_id) do update set role = excluded.role;
+
+-- ---------------------------------------------------------------------
+-- 3) Instrumentos de cada membro (1=Voz, 2=Teclado, 3=Violão, 4=Guitarra,
+--    5=Baixo, 6=Bateria Acústica, 8=Violino, 12=Saxofone, 17=Cajon, 20=Piano)
 -- ---------------------------------------------------------------------
 insert into public.member_instruments (profile_id, instrument_id, is_primary) values
-  ('a0000000-0000-0000-0000-000000000001', 3, true),    -- Ana: Teclado
-  ('a0000000-0000-0000-0000-000000000001', 1, false),   -- Ana: Voz
-  ('a0000000-0000-0000-0000-000000000002', 2, true),    -- Bruno: Violão
-  ('a0000000-0000-0000-0000-000000000002', 1, false),   -- Bruno: Voz
-  ('a0000000-0000-0000-0000-000000000003', 1, true),    -- Carla: Voz
-  ('a0000000-0000-0000-0000-000000000004', 4, true),    -- Diego: Baixo
-  ('a0000000-0000-0000-0000-000000000005', 5, true),    -- Elisa: Bateria
-  ('a0000000-0000-0000-0000-000000000006', 2, true),    -- Felipe: Violão
-  ('a0000000-0000-0000-0000-000000000007', 1, true),    -- Gabriela: Voz
-  ('a0000000-0000-0000-0000-000000000007', 6, false),   -- Gabriela: Guitarra
-  ('a0000000-0000-0000-0000-000000000008', 3, true)     -- Henrique: Teclado
-on conflict (profile_id, instrument_id) do nothing;
+  ('a0000000-0000-0000-0000-000000000001', 2,  true),   -- Ana: Teclado
+  ('a0000000-0000-0000-0000-000000000001', 1,  false),  -- Ana: Voz
+  ('a0000000-0000-0000-0000-000000000002', 3,  true),   -- Bruno: Violão
+  ('a0000000-0000-0000-0000-000000000002', 1,  false),  -- Bruno: Voz
+  ('a0000000-0000-0000-0000-000000000003', 1,  true),   -- Carla: Voz
+  ('a0000000-0000-0000-0000-000000000003', 20, false),  -- Carla: Piano
+  ('a0000000-0000-0000-0000-000000000004', 5,  true),   -- Diego: Baixo
+  ('a0000000-0000-0000-0000-000000000005', 6,  true),   -- Elisa: Bateria Acústica
+  ('a0000000-0000-0000-0000-000000000005', 17, false),  -- Elisa: Cajon
+  ('a0000000-0000-0000-0000-000000000006', 4,  true),   -- Felipe: Guitarra
+  ('a0000000-0000-0000-0000-000000000006', 1,  false),  -- Felipe: Voz
+  ('a0000000-0000-0000-0000-000000000007', 8,  true),   -- Gabriela: Violino
+  ('a0000000-0000-0000-0000-000000000007', 1,  false),  -- Gabriela: Voz
+  ('a0000000-0000-0000-0000-000000000008', 12, true)    -- Henrique: Saxofone
+on conflict (profile_id, instrument_id) do update set is_primary = excluded.is_primary;
 
 -- ---------------------------------------------------------------------
--- 3) Eventos de exemplo (sempre no futuro)
+-- 4) Eventos (por igreja)
+--    Anglicana: e..0001 🔴 / e..0002 🟡 / e..0003 🟢
+--    Catedral:  e..0011 🔴 / e..0012 🟢
 -- ---------------------------------------------------------------------
-insert into public.events (id, title, type, location, starts_at, ends_at, notes, created_by) values
-  ('e0000000-0000-0000-0000-000000000001', 'Ensaio da semana', 'ensaio', 'Sala de ensaios',
-   (current_date + 3 + time '19:30')::timestamptz, (current_date + 3 + time '22:00')::timestamptz,
-   null, 'a0000000-0000-0000-0000-000000000001'),
-  ('e0000000-0000-0000-0000-000000000002', 'Ensaio geral', 'ensaio', 'Sala de ensaios',
-   (current_date + 7 + time '19:30')::timestamptz, (current_date + 7 + time '22:00')::timestamptz,
-   null, 'a0000000-0000-0000-0000-000000000001'),
-  ('e0000000-0000-0000-0000-000000000003', 'Show — Igreja Central', 'evento', 'Igreja Central',
-   (current_date + 14 + time '19:00')::timestamptz, (current_date + 14 + time '22:00')::timestamptz,
-   'Levar repertório impresso', 'a0000000-0000-0000-0000-000000000001')
-on conflict (id) do nothing;
+insert into public.events (id, church_id, title, type, location, starts_at, ends_at, notes, created_by) values
+  ('e0000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-000000000001','Ensaio da semana','ensaio','Sala de ensaios', (current_date + 2 + time '19:30'), (current_date + 2 + time '22:00'), null,'a0000000-0000-0000-0000-000000000001'),
+  ('e0000000-0000-0000-0000-000000000002','c0000000-0000-0000-0000-000000000001','Ensaio geral','ensaio','Templo', (current_date + 9 + time '19:30'), (current_date + 9 + time '22:00'), null,'a0000000-0000-0000-0000-000000000001'),
+  ('e0000000-0000-0000-0000-000000000003','c0000000-0000-0000-0000-000000000001','Show — Igreja Central','evento','Auditório', (current_date + 20 + time '19:00'), (current_date + 20 + time '21:00'), 'Levar cifras impressas','a0000000-0000-0000-0000-000000000001'),
+  ('e0000000-0000-0000-0000-000000000011','c0000000-0000-0000-0000-000000000002','Ensaio de quinta','ensaio','Catedral — salão', (current_date + 3 + time '20:00'), (current_date + 3 + time '22:00'), null,'a0000000-0000-0000-0000-000000000003'),
+  ('e0000000-0000-0000-0000-000000000012','c0000000-0000-0000-0000-000000000002','Culto de louvor','evento','Catedral', (current_date + 12 + time '18:00'), (current_date + 12 + time '20:00'), null,'a0000000-0000-0000-0000-000000000003')
+on conflict (id) do update set
+  church_id=excluded.church_id, title=excluded.title, type=excluded.type,
+  location=excluded.location, starts_at=excluded.starts_at, ends_at=excluded.ends_at, notes=excluded.notes;
 
 -- ---------------------------------------------------------------------
--- 4) Confirmações (montam os 3 estados de criticidade)
+-- 5) Confirmações
 -- ---------------------------------------------------------------------
-
--- Evento 1 -> 🔴 CRÍTICO: só Diego confirmou (Baixo) => sem voz, sem base
 insert into public.event_members (event_id, profile_id, status) values
-  ('e0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000004', 'confirmado')
-on conflict (event_id, profile_id) do update set status = excluded.status;
+  -- Evento 1 (Anglicana) -> 🔴 (sem voz): só Diego
+  ('e0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000004','confirmado'),
+  -- Evento 2 (Anglicana) -> 🟡: 4/8, com voz + base
+  ('e0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000001','confirmado'),
+  ('e0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000002','confirmado'),
+  ('e0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000003','confirmado'),
+  ('e0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000004','confirmado'),
+  -- Evento 3 (Anglicana) -> 🟢: 6/8, com voz + base
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000001','confirmado'),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000002','confirmado'),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000003','confirmado'),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000004','confirmado'),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000006','confirmado'),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000007','confirmado'),
+  -- Evento 11 (Catedral) -> 🔴: só Felipe (Guitarra)
+  ('e0000000-0000-0000-0000-000000000011','a0000000-0000-0000-0000-000000000006','confirmado'),
+  -- Evento 12 (Catedral) -> 🟢: 3/3, com voz (Carla) + base (Diego)
+  ('e0000000-0000-0000-0000-000000000012','a0000000-0000-0000-0000-000000000003','confirmado'),
+  ('e0000000-0000-0000-0000-000000000012','a0000000-0000-0000-0000-000000000004','confirmado'),
+  ('e0000000-0000-0000-0000-000000000012','a0000000-0000-0000-0000-000000000006','confirmado')
+on conflict (event_id, profile_id) do update set status=excluded.status;
 
--- Evento 2 -> 🟡 ALERTA: 4/8 confirmados (metade), com voz + base
-insert into public.event_members (event_id, profile_id, status) values
-  ('e0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'confirmado'),
-  ('e0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000002', 'confirmado'),
-  ('e0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000003', 'confirmado'),
-  ('e0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000004', 'confirmado')
-on conflict (event_id, profile_id) do update set status = excluded.status;
-
--- Evento 3 -> 🟢 OK: 6/8 confirmados, com voz + base
-insert into public.event_members (event_id, profile_id, status) values
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'confirmado'),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000002', 'confirmado'),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000003', 'confirmado'),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000004', 'confirmado'),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000006', 'confirmado'),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000007', 'confirmado')
-on conflict (event_id, profile_id) do update set status = excluded.status;
-
--- Instrumentos escolhidos nas confirmações (multi-instrumento!)
+-- ---------------------------------------------------------------------
+-- 6) Instrumentos escolhidos nas confirmações
+-- ---------------------------------------------------------------------
 insert into public.event_member_instruments (event_id, profile_id, instrument_id) values
-  -- Evento 1
-  ('e0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000004', 4),
-  -- Evento 2
-  ('e0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 1),
-  ('e0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 3),
-  ('e0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000002', 2),
-  ('e0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000002', 1),
-  ('e0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000003', 1),
-  ('e0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000004', 4),
-  -- Evento 3
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 1),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 3),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000002', 2),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000002', 1),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000003', 1),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000004', 4),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000006', 2),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000007', 1),
-  ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000007', 6)
+  ('e0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000004',5),
+  ('e0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000001',1),
+  ('e0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000001',2),
+  ('e0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000002',3),
+  ('e0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000002',1),
+  ('e0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000003',1),
+  ('e0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000004',5),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000001',1),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000001',2),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000002',3),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000002',1),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000003',1),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000004',5),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000006',4),
+  ('e0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000007',8),
+  ('e0000000-0000-0000-0000-000000000011','a0000000-0000-0000-0000-000000000006',4),
+  ('e0000000-0000-0000-0000-000000000012','a0000000-0000-0000-0000-000000000003',1),
+  ('e0000000-0000-0000-0000-000000000012','a0000000-0000-0000-0000-000000000004',5),
+  ('e0000000-0000-0000-0000-000000000012','a0000000-0000-0000-0000-000000000006',4)
 on conflict (event_id, profile_id, instrument_id) do nothing;
 
 -- ---------------------------------------------------------------------
--- 5) Licença de exemplo (Henrique, 10 dias)
+-- 7) Licença de exemplo (Henrique, 10 dias)
 -- ---------------------------------------------------------------------
 do $$
 begin
@@ -169,3 +209,22 @@ begin
             current_date, current_date + 10, 'Viagem de trabalho');
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------
+-- 8) Repertório (biblioteca por igreja) + associação a eventos
+-- ---------------------------------------------------------------------
+insert into public.songs (id, church_id, artist, title, music_key, link) values
+  ('d0000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-000000000001','Hillsong United','Oceans','D','https://www.cifraclub.com.br/hillsong-united/oceans/'),
+  ('d0000000-0000-0000-0000-000000000002','c0000000-0000-0000-0000-000000000001','Fernandinho','Grande é o Senhor','G','https://www.cifraclub.com.br/fernandinho/grande-e-o-senhor/'),
+  ('d0000000-0000-0000-0000-000000000003','c0000000-0000-0000-0000-000000000001','Aline Barros','Ressuscita-me','A','https://www.cifraclub.com.br/aline-barros/ressuscita-me/'),
+  ('d0000000-0000-0000-0000-000000000011','c0000000-0000-0000-0000-000000000002','Vineyard','Tua Graça Me Basta','C','https://www.cifraclub.com.br/vineyard/tua-graca-me-basta/')
+on conflict (id) do update set church_id=excluded.church_id, artist=excluded.artist,
+  title=excluded.title, music_key=excluded.music_key, link=excluded.link;
+
+insert into public.event_songs (event_id, song_id, position) values
+  ('e0000000-0000-0000-0000-000000000003','d0000000-0000-0000-0000-000000000001',1),
+  ('e0000000-0000-0000-0000-000000000003','d0000000-0000-0000-0000-000000000002',2),
+  ('e0000000-0000-0000-0000-000000000003','d0000000-0000-0000-0000-000000000003',3),
+  ('e0000000-0000-0000-0000-000000000012','d0000000-0000-0000-0000-000000000011',1)
+on conflict (event_id, song_id) do update set position=excluded.position;
+

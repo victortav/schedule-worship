@@ -1,19 +1,21 @@
 // =====================================================================
-// Perfil: dados do usuário + minhas licenças
-// (instrumentos e nome são gerenciados pelo admin — read-only aqui)
+// Perfil: dados do usuário + instrumentos (edição própria) + licenças
 // =====================================================================
 import { supabase } from '../client.js';
-import { fetchMembers, fetchAbsences } from '../api.js';
-import { $, esc, avatar } from '../ui.js';
+import {
+  fetchAbsences, fetchInstruments, fetchMemberInstruments, saveMyInstruments,
+} from '../api.js';
+import { $, $$, esc, avatar, toast } from '../ui.js';
 import { mountAbsences } from './_shared.js';
 
 export const Perfil = {
   async render(el) {
     const ME = window.ME;
-    const [{ data: sess }, members, absences] = await Promise.all([
-      supabase.auth.getSession(), fetchMembers(), fetchAbsences(),
+    const [{ data: sess }, instruments, mi, absences] = await Promise.all([
+      supabase.auth.getSession(), fetchInstruments(), fetchMemberInstruments(), fetchAbsences(),
     ]);
-    const me = members.find((m) => m.id === ME.id) || { instruments: [] };
+    const mineIds = mi[ME.id] || [];
+    const church = window.ACTIVE_CHURCH;
 
     el.innerHTML = `
       <h1>Perfil</h1>
@@ -22,19 +24,42 @@ export const Perfil = {
           ${avatar(ME.full_name, 56)}
           <div class="grow">
             <strong>${esc(ME.full_name)}</strong>
-            <div class="muted small">${esc(sess.session?.user?.email || '')}
-              ${ME.role === 'admin' ? ' · 👑 admin' : ''}</div>
+            <div class="muted small">${esc(sess.session?.user?.email || '')}${
+              ME.role === 'system_admin' ? ' · 🛡 admin de sistema' : ''
+            }</div>
+            <div class="muted small">⛪ ${esc(church?.name || '—')}${
+              church ? ' · ' + (church.role === 'admin' ? '👑 admin da igreja' : 'membro') : ''
+            }</div>
           </div>
         </div>
-        <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
-          <span class="muted small">Instrumentos (editado pelo admin):</span>
-          ${me.instruments.length
-            ? me.instruments.map((i) => `<span class="chip inst">${esc(i.name)}</span>`).join('')
-            : '<span class="muted">nenhum — peça ao admin</span>'}
-        </div>
       </div>
+
+      <h2 style="margin-top:20px">🎸 Instrumentos que eu toco</h2>
+      <div class="card">
+        <p class="muted small">Marque os instrumentos que você toca — o primeiro vira o principal.</p>
+        <div class="inst-picks" id="pf-inst">
+          ${instruments
+            .map(
+              (i) =>
+                `<label><input type="checkbox" value="${i.id}" ${mineIds.includes(i.id) ? 'checked' : ''}> ${esc(i.name)}</label>`
+            )
+            .join('')}
+        </div>
+        <div class="form-actions"><button class="btn primary" id="pf-save">Salvar instrumentos</button></div>
+      </div>
+
       <h2 style="margin-top:20px">🏖 Minhas licenças</h2>
       <div id="pf-abs"></div>`;
+
+    $('#pf-save', el).onclick = async () => {
+      const ids = $$('#pf-inst input:checked', el).map((c) => Number(c.value));
+      try {
+        await saveMyInstruments(ME, ids);
+        toast('Instrumentos salvos');
+      } catch {
+        /* toast já veio da api */
+      }
+    };
 
     mountAbsences($('#pf-abs', el), ME, absences[ME.id] || [], () => this.render(el));
   },

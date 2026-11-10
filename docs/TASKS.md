@@ -1,8 +1,8 @@
 # 📋 Tarefas — Agenda de Ensaios (SOT)
 
-> **▶ NEXT — Fase 4 (Produção):** escolher hospedagem (Vercel/Hostinger) + criar o projeto
-> Supabase na nuvem → preencher `PROD` em `web/js/config.js` (URL + anon key) → ativar
-> **Google OAuth** → cadastrar `Redirect URLs` → deploy. (Fases 0–3 concluídas.)
+> **▶ NEXT — validar a v2 (multi-igreja) no browser:** `.\\dev-up.ps1` → http://localhost:3000 →
+> login `ana@teste.com`/`123456` → usar o **seletor de igreja** (Anglicana ⇄ Catedral) → alternar
+> **tema claro** → Admin: repertório, músicas e igrejas. Depois: **Fase 4** (Produção).
 >
 > **Retomada:** ler as 30 primeiras linhas daqui → seguir ▶ NEXT.
 > Protocolo de contexto: `docs/STEERING.md`. Contratos abaixo (API/UI) substituem reler fonte.
@@ -153,3 +153,4 @@ Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
 | 05/11 18:30 | Root cause do seed: (1) `\|\| '"}'::jsonb` → `jsonb_build_object('full_name',…)`; (2) `date at time` não existe → `date + time '19:30'`; (3) 2 UUIDs com dash faltando (lin. 95-96, 31 chars). Seed 100% aplicado: 8 users, 3 eventos, 11 confirmações, 16 instrumentos, 1 licença. ▶ NEXT: `docs/_verify.txt` → E2E browser |
 | 06/11 | E2E **por API** OK (item 1.9): login `ana@teste.com`/`123456` voltou a funcionar após 2 fixes no `seed.sql` — `instance_id = uuid_nil` + 4 colunas de token `NULL`→`''` (GoTrue v2.197). Validações: web `200`, migrate `MIGRATION OK`, anon→`401`, `event_status` = 1🔴 (Ensaio da semana) / 1🟡 (Ensaio geral) / 1🟢 (Show), `ana`=admin, membro criando evento → `403` (RLS). ▶ NEXT 1.9f: confirmar o visual no browser |
 | 06/11 | Fase 3 concluída: usuário validou o E2E no navegador (1.9f). Polimento aplicado: `.form-grid` → 1 coluna ≤560px; toast sobe no desktop (≥900px); nome do usuário oculto ≤480px; `catch` no `mountAnswer.save` (erros de RLS já viram toast em `api.js fail`). Assets servindo `200`. ▶ NEXT: Fase 4 (Produção) |
+| 06/11 | **v2 multi-igreja + repertório** (backend validado por API): tabelas `churches`/`church_members`/`songs`/`event_songs`; `church_id` em events/songs; papel global `system_admin`; helper RLS `is_system_admin/is_member_of/is_admin_of/shares_church/admin_of_profile/event_church`; catálogo com 20 instrumentos (+Voz); `member_instruments` editável pelo próprio membro. Seed: 2 igrejas (Anglicana Libertador = dados atuais; Catedral Comunhão = nova), repertório, 5 eventos. Front: seletor de igreja, **tema claro**, **flatpickr** nos pickers, repertório por evento, instrumentos editáveis, fix do `.cal-nav`. ▶ NEXT: validar v2 no browser |

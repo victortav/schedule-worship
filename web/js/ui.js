@@ -101,3 +101,21 @@ export function instNames(list) {
 export function confirmLabel(s) {
   return { confirmado: '✅ Vou', ausente: '❌ Não vou', pendente: '⏳ Pendente' }[s] || s;
 }
+
+// ---------------- tema (claro/escuro) ----------------
+export function initTheme() {
+  const saved = localStorage.getItem('theme');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+}
+export function currentTheme() {
+  return (
+    document.documentElement.getAttribute('data-theme') ||
+    (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+  );
+}
+export function toggleTheme() {
+  const next = currentTheme() === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  return next;
+}

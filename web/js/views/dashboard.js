@@ -6,7 +6,7 @@ import { $, esc, fmtWhen, relDay, statusBadge, statusReasons } from '../ui.js';
 
 export const Dashboard = {
   async render(el) {
-    const rows = await fetchEventStatus();
+    const rows = await fetchEventStatus(window.ACTIVE_CHURCH_ID);
     const crit = rows.filter((r) => r.e_critico);
     const alert = rows.filter((r) => !r.e_critico && r.e_alerta);
     const ok = rows.filter((r) => !r.e_critico && !r.e_alerta);

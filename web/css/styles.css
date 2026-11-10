@@ -21,8 +21,21 @@
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
+/* Tema claro (toggle manual em #theme-toggle) */
+:root[data-theme='light'] {
+  --bg: #f4f5fb;
+  --bg-soft: #eceef8;
+  --card: #ffffff;
+  --card-hover: #f0f1fa;
+  --text: #1c2033;
+  --muted: #5d6382;
+  --line: #dcdff0;
+  --shadow: 0 8px 24px rgba(30, 35, 90, 0.10);
+}
+
+/* Tema claro pela preferência do sistema (quando o usuário ainda não escolheu) */
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #f4f5fb;
     --bg-soft: #eceef8;
     --card: #ffffff;
@@ -334,4 +347,36 @@ label.field > span { display: block; font-size: 0.8rem; color: var(--muted); mar
 }
 .divider::before, .divider::after {
   content: ''; flex: 1; height: 1px; background: var(--line);
+}
+
+/* ---------------- seletor de igreja / tema (topbar) ---------------- */
+.church-pick { display: flex; align-items: center; gap: 6px; margin-right: 4px; }
+.church-pick .church-name { font-size: .85rem; color: var(--muted); }
+.church-pick select {
+  width: auto; max-width: 210px;
+  padding: 6px 10px; font-size: .82rem; border-radius: 8px;
+}
+#theme-toggle { font-size: 1rem; padding: 6px 9px; }
+@media (max-width: 760px) {
+  .church-pick select { max-width: 130px; }
+  .topbar .title { display: none; }
+}
+
+/* ---------------- barra de navegação do calendário ---------------- */
+.cal-nav {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; margin-bottom: 12px; flex-wrap: nowrap;
+}
+.cal-nav .cal-month { min-width: 140px; text-align: center; font-size: 1rem; }
+.cal-nav .btn { flex: none; }
+
+/* ---------------- flatpickr: alinhado ao tema ---------------- */
+.flatpickr-calendar {
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  font-family: inherit;
+}
+.flatpickr-day.selected,
+.flatpickr-day.selected:hover {
+  background: var(--brand); border-color: var(--brand);
 }

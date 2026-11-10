@@ -6,7 +6,7 @@ import { $, esc, avatar } from '../ui.js';
 
 export const Membros = {
   async render(el) {
-    const members = await fetchMembers();
+    const members = await fetchMembers(window.ACTIVE_CHURCH_ID);
     el.innerHTML = `
       <h1>Membros</h1>
       <p class="muted">${members.length} integrantes ativos</p>

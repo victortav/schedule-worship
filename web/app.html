@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Agenda de Ensaios</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎸</text></svg>" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -13,7 +14,9 @@
   <header id="topbar" class="topbar" style="display:none">
     <span class="logo">🎸</span>
     <span class="title">Agenda de Ensaios</span>
+    <div id="church-pick" class="church-pick" style="display:none"></div>
     <div id="user-chip" style="display:none; align-items:center; gap:8px"></div>
+    <button class="btn small ghost" id="theme-toggle" title="Alternar tema claro/escuro">🌙</button>
   </header>
 
   <div id="shell" class="app" style="display:none">
@@ -37,6 +40,8 @@
     <a href="#/perfil" data-route="perfil"><span class="ic">🙂</span>Perfil</a>
   </nav>
 
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/pt.js"></script>
   <script type="module" src="/js/app.js"></script>
 </body>
 </html>
