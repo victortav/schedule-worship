@@ -1,8 +1,8 @@
 # 📋 Tarefas — Agenda de Ensaios (SOT)
 
-> **▶ NEXT — 1.9f (browser):** abrir http://localhost:3000 → login `ana@teste.com`/`123456`
-> → conferir visualmente dashboard 1🔴 (Ensaio da semana) 1🟡 (Ensaio geral) 1🟢 (Show).
-> Backend já validado por API (migrate/login/criticidade/RLS OK em `docs/_verify.txt`).
+> **▶ NEXT — Fase 4 (Produção):** escolher hospedagem (Vercel/Hostinger) + criar o projeto
+> Supabase na nuvem → preencher `PROD` em `web/js/config.js` (URL + anon key) → ativar
+> **Google OAuth** → cadastrar `Redirect URLs` → deploy. (Fases 0–3 concluídas.)
 >
 > **Retomada:** ler as 30 primeiras linhas daqui → seguir ▶ NEXT.
 > Protocolo de contexto: `docs/STEERING.md`. Contratos abaixo (API/UI) substituem reler fonte.
@@ -21,8 +21,8 @@
 - [x] Fase 0 — Arquitetura
 - [x] Fase 1 — Ambiente: seed aplicado + **E2E por API OK** (login ana, 3 status, RLS 401/403)
 - [x] Fase 2 — Frontend: base + 7 views (`web/js/views/`)
-- [~] Fase 3 — E2E no browser (visual) + polimento ← ATUAL
-- [ ] Fase 4 — Produção
+- [x] Fase 3 — E2E no browser + polimento (responsivo + toast de erro de RLS)
+- [ ] Fase 4 — Produção (Vercel/Hostinger + Google OAuth) ← ATUAL
 
 ## O que fazer AGORA (1 item = 1 arquivo/comando)
 
@@ -34,11 +34,11 @@
 - [x] 1.9d `ana@teste.com`/`123456` → login OK; dashboard 1🔴/1🟡/1🟢 (por API)
 - [x] 1.9e RLS escrita: `bruno` (membro) criar evento → `403`
 
-**Fase 3 (só após 1.9f)**
-- [ ] 1.9f browser: confirmar visualmente login + dashboard/logout/rotas
-- [ ] 3.1 responsivo: 375px (bottomnav) / 1280px (sidebar)
-- [ ] 3.2 erros de RLS viram toast amigável
-- [ ] 3.3 resultado do E2E anotado no log de progresso
+**Fase 3**
+- [x] 1.9f browser: login + dashboard/logout/rotas conferidos pelo usuário no navegador
+- [x] 3.1 responsivo: bottomnav ≤900px / sidebar ≥900px · `.form-grid` 1 col ≤560px · nome oculto ≤480px
+- [x] 3.2 erros de RLS → toast amigável (`api.js fail` + `catch` no `mountAnswer.save`)
+- [x] 3.3 resultado do E2E anotado no log de progresso
 
 ## Mapa dos arquivos (estado real)
 
@@ -152,3 +152,4 @@ Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
 | 05/11 18h | Criado `STEERING.md` (protocolo de contexto); TASKS.md virou snapshot (▶ NEXT + itens 1-cmd); temporários `docs/_*.txt` apagados. `dev-up` abortou: **db unhealthy**. ▶ NEXT 1.9a: log do db |
 | 05/11 18:30 | Root cause do seed: (1) `\|\| '"}'::jsonb` → `jsonb_build_object('full_name',…)`; (2) `date at time` não existe → `date + time '19:30'`; (3) 2 UUIDs com dash faltando (lin. 95-96, 31 chars). Seed 100% aplicado: 8 users, 3 eventos, 11 confirmações, 16 instrumentos, 1 licença. ▶ NEXT: `docs/_verify.txt` → E2E browser |
 | 06/11 | E2E **por API** OK (item 1.9): login `ana@teste.com`/`123456` voltou a funcionar após 2 fixes no `seed.sql` — `instance_id = uuid_nil` + 4 colunas de token `NULL`→`''` (GoTrue v2.197). Validações: web `200`, migrate `MIGRATION OK`, anon→`401`, `event_status` = 1🔴 (Ensaio da semana) / 1🟡 (Ensaio geral) / 1🟢 (Show), `ana`=admin, membro criando evento → `403` (RLS). ▶ NEXT 1.9f: confirmar o visual no browser |
+| 06/11 | Fase 3 concluída: usuário validou o E2E no navegador (1.9f). Polimento aplicado: `.form-grid` → 1 coluna ≤560px; toast sobe no desktop (≥900px); nome do usuário oculto ≤480px; `catch` no `mountAnswer.save` (erros de RLS já viram toast em `api.js fail`). Assets servindo `200`. ▶ NEXT: Fase 4 (Produção) |

@@ -27,6 +27,8 @@ export function mountAnswer(el, user, eventId, myInstruments, current, onSaved) 
       toast('Resposta salva');
       render();
       onSaved?.();
+    } catch {
+      /* erro já virou toast amigável no api.js (fail) — nada mais a fazer */
     } finally {
       busy = false;
     }

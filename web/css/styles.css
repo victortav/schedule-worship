@@ -109,6 +109,7 @@ small, .muted { color: var(--muted); }
   }
   .sidebar a.active { background: var(--card); color: var(--text); }
   .content { padding: 24px 28px; }
+  .toast { bottom: 24px; } /* no desktop não há bottom-nav */
 }
 
 /* ---------------- cards e chips ---------------- */
@@ -215,6 +216,14 @@ label.field > span { display: block; font-size: 0.8rem; color: var(--muted); mar
   border-color: var(--brand);
 }
 .inst-picks input { accent-color: var(--brand); }
+
+/* ---------------- ajustes de telas pequenas ---------------- */
+@media (max-width: 560px) {
+  .form-grid { grid-template-columns: 1fr; } /* formulários em 1 coluna no celular */
+}
+@media (max-width: 480px) {
+  #user-chip a:not(.avatar) { display: none; } /* esconde o nome; mantém o avatar */
+}
 
 /* ---------------- listas ---------------- */
 .list-row {
