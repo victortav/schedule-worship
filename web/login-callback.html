@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agenda de Ensaios — Conectando…</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="loading" id="msg">⏳ Conectando com o Google…</div>
+  </div>
+  <script type="module">
+    import { supabase } from '/js/client.js';
+    // Com detectSessionInUrl, o getSession() troca o ?code= (PKCE)
+    // pela sessão e já persiste em localStorage.
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session) throw new Error(error?.message || 'Sem sessão após o redirect.');
+      const url = new URL(location.href);
+      url.search = '';
+      url.hash = '#/meu-agenda';
+      location.replace(url.toString().replace(location.origin, '') || '/app.html');
+    } catch (e) {
+      const el = document.getElementById('msg');
+      el.textContent = '❌ ' + e.message;
+      el.classList.remove('loading');
+      el.style.color = 'var(--crit)';
+      setTimeout(() => (location.href = '/index.html'), 2500);
+    }
+  </script>
+</body>
+</html>

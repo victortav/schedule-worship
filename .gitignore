@@ -1,0 +1,30 @@
+# =====================================================================
+# schedule-worship — .gitignore raiz
+# =====================================================================
+
+# Sistema operacional / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Arquivos temporários de trabalho (ver docs/STEERING.md §4)
+docs/_*
+
+# Rascunhos soltos
+_t3.sql
+
+# Node (o app é estático sem build; por garantia)
+node_modules/
+
+# Segredos / dados locais (o supabase-local/.gitignore já cobre o essencial;
+# reforçamos aqui para o caso de o arquivo ser movido)
+.env
+supabase-local/.env
+supabase-local/volumes/db/data/
+supabase-local/volumes/storage/

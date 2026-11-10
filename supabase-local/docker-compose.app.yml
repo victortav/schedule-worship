@@ -1,0 +1,66 @@
+# =====================================================================
+# Sobremontado do Supabase local: aplica o schema/seed e serve o app.
+#
+# Uso:
+#   docker compose -f supabase-local/docker-compose.yml -f supabase-local/docker-compose.app.yml up -d
+#
+#   App:      http://localhost:3000
+#   Studio:   http://localhost:8000/  (admin: supabase / this_password_is_insecure_and_should_be_updated)
+#   API:      http://localhost:8000
+#
+# Reset total (apaga o banco, volumes e containers; `down -v` já remove o
+# volume named db-data do PG):
+#   docker compose -f supabase-local/docker-compose.yml -f supabase-local/docker-compose.app.yml down -v
+# =====================================================================
+
+services:
+  # WSL: bind mount ./volumes/db/data (vindo de /mnt/c, DrvFs) falha no initdb
+  # ("chmod: Operation not permitted"). Volume named (ext4 no WSL) substitui o
+  # target igual no compose base (merge do compose: override vence por target).
+  db:
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  migrate:
+    container_name: schedule-migrate
+    image: postgres:17
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    # sobe como superuser: consegue criar extension, trigger em auth.users e grants
+    user: "postgres"
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      # no stack novo, `postgres` NAO é superuser; `supabase_admin` é
+      # (necessário p/ trigger em auth.users + grants)
+      PGUSER: supabase_admin
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+    volumes:
+      - ../supabase/schema.sql:/sql/schema.sql:ro
+      - ../supabase/seed.sql:/sql/seed.sql:ro
+    # -q silencia; schema.sql e seed.sql são idempotentes
+    command:
+      [
+        "/bin/sh",
+        "-c",
+        "psql -v ON_ERROR_STOP=1 -q -f /sql/schema.sql && psql -v ON_ERROR_STOP=1 -q -f /sql/seed.sql && echo 'MIGRATION OK'"
+      ]
+
+  web:
+    container_name: schedule-web
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - migrate
+    ports:
+      - "3000:80"
+    volumes:
+      - ../web:/usr/share/nginx/html:ro
+      - ./volumes/web/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+# Volume named do PG (persiste no ext4 do WSL; `down -v` apaga)
+volumes:
+  db-data:

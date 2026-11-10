@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agenda de Ensaios</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎸</text></svg>" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div id="boot" class="loading">⏳ Carregando…</div>
+
+  <header id="topbar" class="topbar" style="display:none">
+    <span class="logo">🎸</span>
+    <span class="title">Agenda de Ensaios</span>
+    <div id="user-chip" style="display:none; align-items:center; gap:8px"></div>
+  </header>
+
+  <div id="shell" class="app" style="display:none">
+    <nav id="sidebar" class="sidebar">
+      <div class="brand">🎸 Agenda</div>
+      <a href="#/meu-agenda" data-route="meu-agenda">🏠 Meu agenda</a>
+      <a href="#/dashboard" data-route="dashboard">📊 Status</a>
+      <a href="#/calendario" data-route="calendario">📅 Calendário</a>
+      <a href="#/membros" data-route="membros">👥 Membros</a>
+      <a href="#/perfil" data-route="perfil">🙂 Perfil</a>
+      <a href="#/admin" data-route="admin" class="admin-only">⚙️ Admin</a>
+    </nav>
+    <main id="view" class="content"></main>
+  </div>
+
+  <nav id="bottomnav" class="bottomnav" style="display:none">
+    <a href="#/meu-agenda" data-route="meu-agenda"><span class="ic">🏠</span>Agenda</a>
+    <a href="#/dashboard" data-route="dashboard"><span class="ic">📊</span>Status</a>
+    <a href="#/calendario" data-route="calendario"><span class="ic">📅</span>Calend.</a>
+    <a href="#/membros" data-route="membros"><span class="ic">👥</span>Membros</a>
+    <a href="#/perfil" data-route="perfil"><span class="ic">🙂</span>Perfil</a>
+  </nav>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

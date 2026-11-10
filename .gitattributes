@@ -1,0 +1,6 @@
+# Normalização de fim de linha entre Windows e WSL/Linux
+# Os scripts .sh RODAM no WSL (Linux) → precisam de LF, senão quebram.
+*.sh text eol=lf
+*.sql text eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
