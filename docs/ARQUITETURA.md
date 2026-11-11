@@ -4,6 +4,13 @@ App web para **ensaios e eventos** de banda: confirmação de presença, instrum
 membro vai tocar, períodos de licença e um **dashboard de criticidade** (ensaios/eventos
 sem base, sem voz ou com poucas pessoas confirmadas).
 
+> **⚠️ Atualização v2 — multi-igreja + repertório (este documento descreve a v1):**
+> a v2 adiciona **multi-igreja** (`churches` + `church_members` N:N, papel **por igreja**),
+> o papel global **`system_admin`**, `church_id` em `events`/`songs`, **repertório**
+> (`songs` + `event_songs`, escrita só de admin), catálogo de **21 instrumentos**,
+> edição dos **próprios instrumentos** pelo membro, **seletor de igreja** e **tema claro/escuro**.
+> Referência atualizada: `README.md` e `docs/TASKS.md`. (Revisão completa deste arquivo pendente.)
+
 ## 1. Stack (e por quê)
 
 | Camada | Escolha | Por quê |

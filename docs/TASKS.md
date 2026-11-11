@@ -9,10 +9,13 @@
 
 ## Regras (fonte: ARQUITETURA.md)
 
-- 🔴 Crítico = sem **voz** confirmada OU sem **base** (violão/teclado) confirmada
-- 🟡 Alerta = confirmados ≤ **metade** dos membros ativos (`confirmados*2 <= membros`)
+- 🔴 Crítico = sem **voz** confirmada OU sem **base** confirmada (cat. `base`: Teclado, Violão, Baixo, Contrabaixo, Piano, Órgão)
+- 🟡 Alerta = confirmados ≤ **metade** dos membros ativos da igreja (`confirmados*2 <= membros`)
 - 🟢 Ok = voz + base e mais da metade confirmada
 - Confirmação aceita **1+ instrumentos** (tabela `event_member_instruments`)
+- **Multi-igreja**: tudo escopado por `church_id`. Papéis: `profiles.role` = `system_admin|membro` (global) · `church_members.role` = `admin|membro` (por igreja)
+- **Repertório** por evento (`songs` + `event_songs`) — **só admin** cria/edita/associa
+- Instrumentos: catálogo global (21) — **o próprio membro** edita os seus (`member_instruments`)
 - App = HTML/CSS/JS **estático sem build** (`web/`) + Supabase (local Docker ou cloud)
 - Login: **Google** (prod) · **e-mail/senha autoconfirm** (local = "mock")
 
@@ -22,6 +25,7 @@
 - [x] Fase 1 — Ambiente: seed aplicado + **E2E por API OK** (login ana, 3 status, RLS 401/403)
 - [x] Fase 2 — Frontend: base + 7 views (`web/js/views/`)
 - [x] Fase 3 — E2E no browser + polimento (responsivo + toast de erro de RLS)
+- [x] Fase 5 — **v2**: multi-igreja (`churches`/`church_members`/`system_admin`) + repertório + tema claro + flatpickr
 - [ ] Fase 4 — Produção (Vercel/Hostinger + Google OAuth) ← ATUAL
 
 ## O que fazer AGORA (1 item = 1 arquivo/comando)
@@ -45,17 +49,17 @@
 ```
 schedule/
 ├── docs/TASKS.md + ARQUITETURA.md
-├── supabase/schema.sql   ✅ DDL idempotente (RLS, view event_status, is_admin())
-│   └── seed.sql          ✅ 8 usuários (senha 123456, ana=admin) + 3 eventos (1🔴 1🟡 1🟢)
+├── supabase/schema.sql   ✅ DDL idempotente — **multi-igreja**: churches/church_members/songs/event_songs, RLS por `church_id`, view `event_status`, helpers de authz
+│   └── seed.sql          ✅ 8 usuários (ana=`system_admin`) + 2 igrejas (Anglicana/Catedral) + 5 eventos + repertório
 ├── supabase-local/       ✅ stack oficial vendorizada
 │   ├── .env              ✅ ENABLE_EMAIL_AUTOCONFIRM=true
 │   ├── docker-compose.app.yml ✅ services: migrate (postgres:17, user postgres) + web (nginx :3000→../web)
 │   └── volumes/web/nginx.conf ✅
 ├── web/                  ← O APP (canônico; docker serve e produção copia daqui)
 │   ├── index.html ✅ (login Google + e-mail local) · login-callback.html ✅ · app.html ✅
-│   ├── css/styles.css ✅
-│   ├── js/{config,client,ui,api}.js ✅ (+fetchEventStatusBetween/ById)
-│   ├── js/login.js ✅ · js/app.js ✅ (router hash; boot→profile→window.ME)
+│   ├── css/styles.css ✅ (temas claro/escuro; .church-pick; .cal-nav)
+│   ├── js/{config,client,ui,api}.js ✅ (api: escopo por igreja + songs/churches; ui: tema claro/escuro)
+│   ├── js/login.js ✅ · js/app.js ✅ (router hash; boot→perfil→igrejas; window.ACTIVE_CHURCH)
 │   └── js/views/ ✅ _shared.js (mountAnswer, mountAbsences)
 │                    meu-agenda · dashboard · calendario · evento · membros · perfil · admin
 ├── app/, supabase/migrations, supabase/seeds — 🗑 legado removido
@@ -66,44 +70,57 @@ schedule/
 
 - [x] 1.1–1.3 vendor + `.env` (autoconfirm on)
 - [x] 1.4 `schema.sql` · [x] 1.5 `seed.sql` · [x] 1.6 compose.app · [x] 1.7 nginx · [x] 1.8 scripts
-- [ ] 1.9 **E2E**: `.\dev-up.ps1` → `curl localhost:3000` (200), login local, dashboard ok
-  - se `migrate` falhar (user `postgres` sem permissão de superuser no stack novo):
-    trocar em `docker-compose.app.yml` `user: "postgres"` + `PGUSER: postgres` → `supabase_admin`
+- [x] 1.9 **E2E**: `.\dev-up.ps1` → `curl localhost:3000` (200), login local OK, dashboard 1🔴/1🟡/1🟢
+  - o `migrate` já conecta como `supabase_admin` (ver Pegadinha 2)
 - URLs: app `:3000` · API/Studio `:8000` (Studio login `supabase` / senha do `.env`) · PG `:5432`
 
 ## CONTRATO API — `web/js/api.js` (use estes nomes exatos)
 
 ```
+fetchMyChurches(userId)      → [{id,name,role}]  igrejas do usuário (+ papel dele por igreja)
+fetchAllChurches()           → [{id,name}]  (RLS: só system_admin enxerga todas)
+adminCreateChurch(name) → church
+adminAddChurchMember(cid,pid,role='membro') · adminSetChurchMemberRole(cid,pid,role) · adminRemoveChurchMember(cid,pid)
+
 fetchInstruments()          → [{id,name,category}]  ('voz'|'base'|'ritmo'|'harmonia'|'outro')
-fetchProfiles()             → profiles[]
-fetchMembers()              → [{...profile, instruments:[{id,name,category}], absences:[{id,start_date,end_date,reason}]}] (só active)
+fetchProfiles()             → profiles[]  (RLS: quem compartilha igreja; todas p/ system_admin)
+fetchMembers(churchId)      → [{...profile, church_role, instruments:[{id,name,category}], absences:[...]}] (só active)
 fetchMemberInstruments()    → { profileId: [instrumentId,...] }
 fetchAbsences()             → { profileId: [rows] }
 isOnLeave(absences, iso)    → bool
-fetchUpcomingEvents()       → events[] (futuros, asc)
+saveMyInstruments(user, ids[])   // o PRÓPRIO membro define seus instrumentos
+adminSetInstruments(pid, ids[])  // admin define os de outro membro
+
+fetchUpcomingEvents(churchId)   → events[] (futuros, asc)
 fetchEvent(id)              → event|null
-fetchEventStatus()          → event_status[] futuros: {id,title,type,location,starts_at,ends_at,confirmados,vozes,bases,membros,e_critico,e_alerta}
-fetchEventStatusBetween(a,b)→ event_status[] no período (calendário)
-fetchEventStatusById(id)    → event_status (detalhe, p/ evento específico)
+fetchEventStatus(churchId)  → event_status[] futuros (por igreja)
+fetchEventStatusBetween(churchId, a, b) → event_status[] no período (calendário)
+fetchEventStatusById(id)    → event_status (detalhe)
 fetchEventConfirmations(eid)→ [{profile_id,status,instruments:[{id,name,category}]}]  (SEM linha = pendente)
 fetchMyConfirmations(user, eventIds[]) → { eventId: {event_id,status} }
 fetchMyEventInstruments(user, eid)     → [instrumentId]
-saveMyAttendance(user, eid, status, instrumentIds=[])   // 'confirmado'|'ausente'; upsert+reescrita
+saveMyAttendance(user, eid, status, instrumentIds=[])   // upsert + reescrita das escolhas
 saveMyAbsence(user, start_date, end_date, reason) · deleteAbsence(userId, absenceId, isAdmin)
-adminCreateEvent(user, fields) → event · adminUpdateEvent(id, fields) · adminDeleteEvent(id)
-adminSetRole(pid, role) · adminSetInstruments(pid, ids[]) · adminToggleActive(pid, bool)
-saveMyName(user, full_name)  // ⚠️ RLS: só admin edita profiles — não expor a membros
+
+fetchSongs(churchId)        → songs[]  (biblioteca da igreja)
+fetchEventSongs(eid)        → [{...song, position}]  (ordenado)
+adminCreateSong(cid, fields) · adminUpdateSong(id, fields) · adminDeleteSong(id)
+adminSetEventSongs(eid, songIds[])   // reescreve o repertório (ordem = ordem da lista)
+
+adminCreateEvent(user, churchId, fields) → event · adminUpdateEvent(id, fields) · adminDeleteEvent(id)
+adminToggleActive(pid, bool) · adminSetSystemAdmin(pid, bool)
 ```
 Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
 
 ## CONTRATO UI
 
-- `ui.js`: `$ $$ esc fmtWhen(s,e) fmtDay isPast relDay toast(msg,'ok'|'erro') statusLevel(row)→critico|alerta|ok statusBadge(row) statusReasons(row)→[txt] avatar(name,size) instNames(list) confirmLabel(status)`
-- CSS pronto: `.card(.clickable .row .grow)` `.chip(.inst)` `.badge .b-critico .b-alerta .b-ok .b-pend` `.avatar` `.btn(.primary .danger .ghost .small .on)` `label.field>span` `.form-grid(.full) .form-actions` `.inst-picks label(input checkbox)` `.list-row(.grow)` `.empty(.big)` `.loading` `.toast` `.cal-head .cal-grid(.dow .cal-cell(.other .today .dn) .cal-ev .e-critico .e-alerta .e-ok)`
-- **app.html** (escrever): `#boot.loading` → `#topbar.topbar` (logo+title+`#user-chip`) → `#shell.app` contendo `#sidebar.sidebar` (`a[data-route]`, admin com `.admin-only`) + `#view.content` → `#bottomnav.bottomnav` (`a[data-route] .ic`) → `<script type="module" src="/js/app.js">`
-- **app.js**: `boot()` sessão→perfil via `supabase.from('profiles').eq('id', ME.id).maybeSingle()` (⚠️ client.js **não** exporta `currentProfile`); `window.ME`; rotas `#/nome` e `#/evento/:id`; views exportam `{ render(el, arg) }` async; rotas: `meu-agenda` (default) `dashboard` `calendario` `evento` `membros` `perfil` `admin`
-- **login.js**: `index.html` carrega `/js/login.js`; ids `#google-area #btn-google #email-area #form-login #li-email #li-pass #btn-login #btn-signup #li-msg`; local = `IS_LOCAL_ENV` (⚠️ **não** existe `ENV.provider` — era do app/ legado); Google via `googleOAuthUrl()`; `signUp` com `options.data.full_name` (trigger lê `raw_user_meta_data->>'full_name'`)
-- **RLS**: membros só escrevem `event_members`/`event_member_instruments`/`absences` **próprias**; resto = admin. "Meus instrumentos" no Perfil = **read-only** (admin gerencia)
+- `ui.js`: `$ $$ esc fmtWhen(s,e) fmtDay isPast relDay toast(msg,'ok'|'erro') statusLevel(row)→critico|alerta|ok statusBadge(row) statusReasons(row)→[txt] avatar(name,size) instNames(list) confirmLabel(status)` + **tema**: `initTheme() currentTheme() toggleTheme()`
+- CSS: `.card(.clickable .row .grow)` `.chip(.inst)` `.badge .b-critico .b-alerta .b-ok .b-pend` `.avatar` `.btn(.primary .danger .ghost .small)` `label.field>span` `.form-grid(.full) .form-actions` `.inst-picks label(input checkbox)` `.list-row(.grow)` `.empty(.big)` `.loading` `.toast(.erro)` `.cal-nav(.cal-month) .cal-head .cal-grid(.dow .cal-cell(.other .today .dn) .cal-ev .e-critico .e-alerta .e-ok)` `.church-pick` · **temas**: `:root` (escuro) + `:root[data-theme='light']` + fallback `@media (prefers-color-scheme: light) :root:not([data-theme])` · flatpickr alinhado ao tema
+- **app.html**: `#boot.loading` → `#topbar.topbar` (logo+title+`#church-pick`+`#user-chip`+`#theme-toggle`) → `#shell.app` (`#sidebar.sidebar` `a[data-route]`, `.admin-only` + `#view.content`) → `#bottomnav` → **flatpickr** (2 `<script>` CDN: core + l10n/pt) → `/js/app.js`
+- **app.js**: `boot()` = sessão → perfil → **igrejas**; expõe `window.ME`, `window.MY_CHURCHES`, `window.ACTIVE_CHURCH`, `window.ACTIVE_CHURCH_ID`, `window.isAdmin()` (= `system_admin` OU admin da igreja ativa). Seletor de igreja persiste em `localStorage['churchId']`; tema em `localStorage['theme']`. Rotas `#/nome` e `#/evento/:id`; views exportam `{ render(el, arg) }` async
+- **login.js**: `index.html` carrega `/js/login.js`; ids `#google-area #btn-google #email-area #form-login #li-email #li-pass #btn-login #btn-signup #li-msg`; local = `IS_LOCAL_ENV`; Google via `googleOAuthUrl()`
+- **Admin** (`views/admin.js`): eventos (com **flatpickr**), repertório da igreja (CRUD de músicas), repertório por evento, membros (papel na igreja, instrumentos, ativar, remover, adicionar) e **igrejas** (só `system_admin`)
+- **RLS**: membro edita **os próprios** `member_instruments`/`event_members`/`event_member_instruments`/`absences`; leitura escopada pela(s) igreja(s); `songs`/`events`/`church_members`/`churches` = escrita de **admin**; tudo filtrado por `church_id`
 
 ## Pegadinhas
 
@@ -135,6 +152,16 @@ Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
    agora replica isso (bloco `do $$ … $$`). Editar o seed **exige** reexecutar o `migrate`:
    `docker start schedule-migrate` (container one-shot já saiu). O endpoint
    `/auth/v1/health` responde `200` **só com** header `apikey` (sem ele → `401`).
+10. **v2 (multi-igreja):** o `schema.sql` mudou muito. Se o banco local foi criado com a **v1**,
+    o `create table if not exists` **não** adiciona `church_id` em `events`/`songs` nem renomeia
+    instrumentos → faça **reset**: `.\dev-reset.ps1` + `.\dev-up.ps1`. Alternativa rápida:
+    `drop schema public cascade; create schema public;` e reaplicar `schema.sql` + `seed.sql`
+    (o seed **recria os profiles**; o trigger só cria no 1º insert em `auth.users`).
+11. **RLS multi-igreja:** tudo depende de `church_id`. Helpers `security definer`:
+    `is_system_admin()`, `is_member_of(c)`, `is_admin_of(c)`, `shares_church(pid)`,
+    `admin_of_profile(pid)`, `event_church(eid)`. Papéis: `profiles.role`
+    (`system_admin`|`membro`, global) e `church_members.role` (`admin`|`membro`, por igreja).
+    `ana@teste.com` é `system_admin`; `carla@` é admin da Catedral (e membro das 2 igrejas).
 
 ## Decisões pendentes (não bloqueiam)
 
