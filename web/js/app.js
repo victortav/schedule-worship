@@ -14,6 +14,7 @@ import { Calendario } from '/js/views/calendario.js';
 import { Evento } from '/js/views/evento.js';
 import { Membros } from '/js/views/membros.js';
 import { Perfil } from '/js/views/perfil.js';
+import { Repertorio } from '/js/views/repertorio.js';
 import { Admin } from '/js/views/admin.js';
 
 const routes = {
@@ -21,6 +22,7 @@ const routes = {
   dashboard: Dashboard,
   calendario: Calendario,
   evento: Evento,
+  repertorio: Repertorio,
   membros: Membros,
   perfil: Perfil,
   admin: Admin,

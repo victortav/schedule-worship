@@ -123,6 +123,17 @@ create table if not exists public.event_songs (
   primary key (event_id, song_id)
 );
 
+-- Solicitações de entrada em igreja (o admin da igreja aprova/recusa)
+create table if not exists public.church_join_requests (
+  church_id  uuid not null references public.churches (id) on delete cascade,
+  profile_id uuid not null references public.profiles (id) on delete cascade,
+  status     text not null default 'pending'
+             check (status in ('pending', 'approved', 'rejected')),
+  created_at timestamptz not null default now(),
+  decided_at timestamptz,
+  primary key (church_id, profile_id)
+);
+
 -- ---------------------------------------------------------------------
 -- 2) TRIGGER: perfil criado sozinho no primeiro login
 -- ---------------------------------------------------------------------
@@ -203,6 +214,20 @@ returns uuid language sql stable security definer set search_path = public as $$
   select church_id from public.events where id = e;
 $$;
 
+-- o usuário atual pode ver o perfil `target`?
+-- (self, system_admin, quem compartilha igreja, ou quem PEDIU entrada numa igreja que administro)
+create or replace function public.can_view_profile(target uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_system_admin()
+      or target = auth.uid()
+      or public.shares_church(target)
+      or exists (
+        select 1 from public.church_join_requests r
+        join public.church_members a on a.church_id = r.church_id
+        where r.profile_id = target and a.profile_id = auth.uid() and a.role = 'admin'
+      );
+$$;
+
 -- ---------------------------------------------------------------------
 -- 5) VIEW de criticidade (por igreja; security_invoker = respeita o RLS)
 -- ---------------------------------------------------------------------
@@ -258,27 +283,31 @@ alter table public.event_member_instruments enable row level security;
 alter table public.absences             enable row level security;
 alter table public.songs                enable row level security;
 alter table public.event_songs          enable row level security;
+alter table public.church_join_requests enable row level security;
 
--- churches: membros leem a própria igreja; system_admin cria/edita
+-- churches: qualquer logado lê a lista (para poder PEDIR entrada); system_admin cria/edita
 drop policy if exists "churches_select" on public.churches;
 create policy "churches_select" on public.churches for select
-  using (public.is_member_of(id));
+  using (auth.uid() is not null);
 drop policy if exists "churches_write" on public.churches;
 create policy "churches_write" on public.churches for all
   using (public.is_system_admin()) with check (public.is_system_admin());
 
--- church_members: membros da igreja leem o roster; admin da igreja escreve
+-- church_members: membros da igreja leem o roster; admin da igreja escreve; o próprio sai
 drop policy if exists "cm_select" on public.church_members;
 create policy "cm_select" on public.church_members for select
-  using (public.is_member_of(church_id));
+  using (public.is_member_of(church_id) or profile_id = auth.uid());
 drop policy if exists "cm_write" on public.church_members;
 create policy "cm_write" on public.church_members for all
   using (public.is_admin_of(church_id)) with check (public.is_admin_of(church_id));
+drop policy if exists "cm_self_delete" on public.church_members;
+create policy "cm_self_delete" on public.church_members for delete
+  using (profile_id = auth.uid());
 
 -- profiles: ver quem compartilha igreja (ou self/sysadmin); editar = admin do alvo
 drop policy if exists "profiles_select" on public.profiles;
 create policy "profiles_select" on public.profiles for select
-  using (id = auth.uid() or public.is_system_admin() or public.shares_church(id));
+  using (public.can_view_profile(id));
 drop policy if exists "profiles_write" on public.profiles;
 create policy "profiles_write" on public.profiles for all
   using (public.admin_of_profile(id)) with check (public.admin_of_profile(id));
@@ -354,18 +383,33 @@ create policy "abs_delete_own" on public.absences for delete
 drop policy if exists "songs_select" on public.songs;
 create policy "songs_select" on public.songs for select
   using (public.is_member_of(church_id));
+-- repertório ABERTO a qualquer membro da igreja (não só admin)
 drop policy if exists "songs_write" on public.songs;
 create policy "songs_write" on public.songs for all
-  using (public.is_admin_of(church_id)) with check (public.is_admin_of(church_id));
+  using (public.is_member_of(church_id)) with check (public.is_member_of(church_id));
 
--- event_songs: membros da igreja do evento leem; admin da igreja escreve
+-- event_songs: membros da igreja do evento leem E escrevem (repertório aberto)
 drop policy if exists "es_select" on public.event_songs;
 create policy "es_select" on public.event_songs for select
   using (public.is_member_of(public.event_church(event_id)));
 drop policy if exists "es_write" on public.event_songs;
 create policy "es_write" on public.event_songs for all
-  using (public.is_admin_of(public.event_church(event_id)))
-  with check (public.is_admin_of(public.event_church(event_id)));
+  using (public.is_member_of(public.event_church(event_id)))
+  with check (public.is_member_of(public.event_church(event_id)));
+
+-- church_join_requests: o próprio cria/vê/cancela; admin da igreja vê e decide
+drop policy if exists "cjr_select" on public.church_join_requests;
+create policy "cjr_select" on public.church_join_requests for select
+  using (profile_id = auth.uid() or public.is_admin_of(church_id));
+drop policy if exists "cjr_insert_own" on public.church_join_requests;
+create policy "cjr_insert_own" on public.church_join_requests for insert
+  with check (profile_id = auth.uid());
+drop policy if exists "cjr_update_admin" on public.church_join_requests;
+create policy "cjr_update_admin" on public.church_join_requests for update
+  using (public.is_admin_of(church_id)) with check (public.is_admin_of(church_id));
+drop policy if exists "cjr_delete" on public.church_join_requests;
+create policy "cjr_delete" on public.church_join_requests for delete
+  using (profile_id = auth.uid() or public.is_admin_of(church_id));
 
 -- ---------------------------------------------------------------------
 -- 7) GRANTS (RLS continua valendo; o grant só habilita a consulta)
@@ -374,13 +418,15 @@ grant usage on schema public to anon, authenticated, service_role;
 grant select, insert, update, delete on
   public.churches, public.profiles, public.church_members, public.instruments,
   public.member_instruments, public.events, public.event_members,
-  public.event_member_instruments, public.absences, public.songs, public.event_songs
+  public.event_member_instruments, public.absences, public.songs,
+  public.event_songs, public.church_join_requests
 to anon, authenticated, service_role;
 grant select on public.event_status to anon, authenticated, service_role;
 grant usage on all sequences in schema public to anon, authenticated, service_role;
 grant execute on function
   public.is_system_admin(), public.is_member_of(uuid), public.is_admin_of(uuid),
-  public.shares_church(uuid), public.admin_of_profile(uuid), public.event_church(uuid)
+  public.shares_church(uuid), public.admin_of_profile(uuid), public.event_church(uuid),
+  public.can_view_profile(uuid)
 to anon, authenticated, service_role;
 
 

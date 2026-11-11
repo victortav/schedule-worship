@@ -228,3 +228,11 @@ insert into public.event_songs (event_id, song_id, position) values
   ('e0000000-0000-0000-0000-000000000012','d0000000-0000-0000-0000-000000000011',1)
 on conflict (event_id, song_id) do update set position=excluded.position;
 
+-- ---------------------------------------------------------------------
+-- 9) Solicitação de entrada pendente (p/ o admin da Catedral testar a aprovação)
+--    Elisa (membro só da Anglicana) pediu para entrar na Catedral Comunhão.
+-- ---------------------------------------------------------------------
+insert into public.church_join_requests (church_id, profile_id, status) values
+  ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000005', 'pending')
+on conflict (church_id, profile_id) do nothing;
+

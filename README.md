@@ -11,10 +11,11 @@ criticidade** que mostra onde falta gente (sem voz, sem base ou com poucas confi
 - **Meu agenda** — pendências, botões *Vou / Não vou* e escolha de 1+ instrumentos
 - **Dashboard de criticidade** — 🔴 sem voz/sem base · 🟡 ≤ metade confirmada · 🟢 ok (por igreja)
 - **Calendário** mensal + **detalhe do evento** (participação + **repertório**)
-- **Repertório** por evento — biblioteca de músicas (Artista, Música, Tom, Link letra/cifra); **só admin** cria/edita/associa
+- **Repertório** — página própria (`#/repertorio`): biblioteca de músicas (Artista, Música, Tom, Link) + associação por evento; **editável por qualquer membro**
+- **Entrar/sair de igreja** — no Perfil; a entrada passa por **aprovação do admin** da igreja
 - **Membros** — instrumentos de cada um + licenças; cada membro edita **os próprios** instrumentos
-- **Admin** — eventos (com date/time picker), membros, repertório e igrejas
-- **Tema claro/escuro** (botão no topo)
+- **Admin** — eventos (com date/time picker), **solicitações de entrada**, membros e igrejas
+- **Tema claro/escuro** (botão no topo) · **Status** em cards com acesso ao evento/repertório
 
 ## 🧱 Stack
 
@@ -102,8 +103,9 @@ Dados de exemplo: igrejas **Anglicana Libertador** (todos) e **Catedral Comunhã
 **Multi-igreja (multi-tenant):** `churches` + `church_members` (N:N, papel **por igreja**).
 `events` e `songs` têm `church_id`; confirmações/licenças derivam a igreja do evento/perfil.
 
-Tabelas: `churches`, `church_members`, `profiles`, `instruments`, `member_instruments`,
-`events`, `event_members`, `event_member_instruments`, `absences`, `songs`, `event_songs`.
+Tabelas: `churches`, `church_members`, `church_join_requests`, `profiles`, `instruments`,
+`member_instruments`, `events`, `event_members`, `event_member_instruments`, `absences`,
+`songs`, `event_songs`.
 
 **Papéis:** `profiles.role` = `system_admin` | `membro` (global) · `church_members.role`
 = `admin` | `membro` (por igreja). O **admin de sistema** cria igrejas e administra tudo.
@@ -114,9 +116,11 @@ Criticidade (view **`event_status`**, por igreja):
 - 🟡 **Alerta** = confirmados ≤ metade dos membros ativos da igreja (`confirmados*2 <= membros`)
 - 🟢 **Ok** = voz + base confirmadas **e** mais da metade confirmada
 
-**RLS:** leitura escopada pela(s) igreja(s) do usuário; escrita de eventos/repertório/membros
-= **admin**; o membro edita os **próprios** instrumentos, confirmações e licenças. Helpers:
-`is_system_admin / is_member_of / is_admin_of / shares_church / admin_of_profile / event_church`.
+**RLS:** leitura escopada pela(s) igreja(s) do usuário; o **membro edita os próprios**
+instrumentos/confirmações/licenças e **escreve o repertório** (`songs`/`event_songs`);
+`events`/`church_members`/`churches` = escrita de **admin**. Entrada/saída de igreja via
+`church_join_requests` (entra só após aprovação do admin). Helpers: `is_system_admin /
+is_member_of / is_admin_of / shares_church / admin_of_profile / event_church / can_view_profile`.
 Instrumentos (catálogo de 21): Voz, Teclado, Violão, Guitarra, Baixo, Bateria Acústica,
 Bateria Eletrônica, Violino, Violoncelo, Viola, Contrabaixo, Saxofone, Trompete, Trombone,
 Flauta, Clarinete, Cajon, Pandeiro, Shaker, Piano, Órgão.

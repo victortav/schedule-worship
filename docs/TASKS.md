@@ -14,7 +14,8 @@
 - 🟢 Ok = voz + base e mais da metade confirmada
 - Confirmação aceita **1+ instrumentos** (tabela `event_member_instruments`)
 - **Multi-igreja**: tudo escopado por `church_id`. Papéis: `profiles.role` = `system_admin|membro` (global) · `church_members.role` = `admin|membro` (por igreja)
-- **Repertório** por evento (`songs` + `event_songs`) — **só admin** cria/edita/associa
+- **Repertório** (`songs` + `event_songs`) tem **página própria** (`#/repertorio`) e é editável por **qualquer membro** da igreja (não só admin)
+- **Entrada/saída de igreja**: o membro pede entrada (ou sai) em `#/perfil`; a entrada só vale após **aprovação do admin** (`church_join_requests`)
 - Instrumentos: catálogo global (21) — **o próprio membro** edita os seus (`member_instruments`)
 - App = HTML/CSS/JS **estático sem build** (`web/`) + Supabase (local Docker ou cloud)
 - Login: **Google** (prod) · **e-mail/senha autoconfirm** (local = "mock")
@@ -26,6 +27,7 @@
 - [x] Fase 2 — Frontend: base + 7 views (`web/js/views/`)
 - [x] Fase 3 — E2E no browser + polimento (responsivo + toast de erro de RLS)
 - [x] Fase 5 — **v2**: multi-igreja (`churches`/`church_members`/`system_admin`) + repertório + tema claro + flatpickr
+- [x] Fase 6 — **v2.1**: página de Repertório (`#/repertorio`, aberta a membros) + entrada/saída de igreja com aprovação + Status em cards + repertório editável no evento
 - [ ] Fase 4 — Produção (Vercel/Hostinger + Google OAuth) ← ATUAL
 
 ## O que fazer AGORA (1 item = 1 arquivo/comando)
@@ -105,7 +107,12 @@ saveMyAbsence(user, start_date, end_date, reason) · deleteAbsence(userId, absen
 fetchSongs(churchId)        → songs[]  (biblioteca da igreja)
 fetchEventSongs(eid)        → [{...song, position}]  (ordenado)
 adminCreateSong(cid, fields) · adminUpdateSong(id, fields) · adminDeleteSong(id)
-adminSetEventSongs(eid, songIds[])   // reescreve o repertório (ordem = ordem da lista)
+adminSetEventSongs(eid, songIds[])   // reescreve o repertório (escrita ABERTA a membros)
+
+// Entrada/saída de igreja (com aprovação)
+fetchMyRequests(userId) → [{church_id,status}] · requestJoinChurch(user,cid) · cancelJoinRequest(user,cid)
+leaveChurch(user,cid)  // o próprio sai · fetchChurchRequests(cid) → pendentes (com full_name)
+decideJoinRequest(cid, pid, approve)  // aprova ⇒ upsert em church_members
 
 adminCreateEvent(user, churchId, fields) → event · adminUpdateEvent(id, fields) · adminDeleteEvent(id)
 adminToggleActive(pid, bool) · adminSetSystemAdmin(pid, bool)
@@ -120,7 +127,7 @@ Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
 - **app.js**: `boot()` = sessão → perfil → **igrejas**; expõe `window.ME`, `window.MY_CHURCHES`, `window.ACTIVE_CHURCH`, `window.ACTIVE_CHURCH_ID`, `window.isAdmin()` (= `system_admin` OU admin da igreja ativa). Seletor de igreja persiste em `localStorage['churchId']`; tema em `localStorage['theme']`. Rotas `#/nome` e `#/evento/:id`; views exportam `{ render(el, arg) }` async
 - **login.js**: `index.html` carrega `/js/login.js`; ids `#google-area #btn-google #email-area #form-login #li-email #li-pass #btn-login #btn-signup #li-msg`; local = `IS_LOCAL_ENV`; Google via `googleOAuthUrl()`
 - **Admin** (`views/admin.js`): eventos (com **flatpickr**), repertório da igreja (CRUD de músicas), repertório por evento, membros (papel na igreja, instrumentos, ativar, remover, adicionar) e **igrejas** (só `system_admin`)
-- **RLS**: membro edita **os próprios** `member_instruments`/`event_members`/`event_member_instruments`/`absences`; leitura escopada pela(s) igreja(s); `songs`/`events`/`church_members`/`churches` = escrita de **admin**; tudo filtrado por `church_id`
+- **RLS**: membro edita **os próprios** `member_instruments`/`event_members`/`event_member_instruments`/`absences`; **qualquer membro** escreve `songs`/`event_songs`; `events`/`church_members`/`churches` = escrita de **admin**; entrada/saída de igreja via `church_join_requests` (aprovação do admin); leitura escopada pela(s) igreja(s); tudo por `church_id`
 
 ## Pegadinhas
 
@@ -181,3 +188,4 @@ Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
 | 06/11 | E2E **por API** OK (item 1.9): login `ana@teste.com`/`123456` voltou a funcionar após 2 fixes no `seed.sql` — `instance_id = uuid_nil` + 4 colunas de token `NULL`→`''` (GoTrue v2.197). Validações: web `200`, migrate `MIGRATION OK`, anon→`401`, `event_status` = 1🔴 (Ensaio da semana) / 1🟡 (Ensaio geral) / 1🟢 (Show), `ana`=admin, membro criando evento → `403` (RLS). ▶ NEXT 1.9f: confirmar o visual no browser |
 | 06/11 | Fase 3 concluída: usuário validou o E2E no navegador (1.9f). Polimento aplicado: `.form-grid` → 1 coluna ≤560px; toast sobe no desktop (≥900px); nome do usuário oculto ≤480px; `catch` no `mountAnswer.save` (erros de RLS já viram toast em `api.js fail`). Assets servindo `200`. ▶ NEXT: Fase 4 (Produção) |
 | 06/11 | **v2 multi-igreja + repertório** (backend validado por API): tabelas `churches`/`church_members`/`songs`/`event_songs`; `church_id` em events/songs; papel global `system_admin`; helper RLS `is_system_admin/is_member_of/is_admin_of/shares_church/admin_of_profile/event_church`; catálogo com 20 instrumentos (+Voz); `member_instruments` editável pelo próprio membro. Seed: 2 igrejas (Anglicana Libertador = dados atuais; Catedral Comunhão = nova), repertório, 5 eventos. Front: seletor de igreja, **tema claro**, **flatpickr** nos pickers, repertório por evento, instrumentos editáveis, fix do `.cal-nav`. ▶ NEXT: validar v2 no browser |
+| 06/11 | **v2.1**: página **Repertório** (`#/repertorio`: CRUD de músicas + associação por evento, **aberto a membros** — RLS `songs`/`event_songs` = `is_member_of`); **entrada/saída de igreja** com aprovação (`church_join_requests` + helper `can_view_profile`; `churches` visível a logados; `cm_self_delete`); **Status em cards** com "Ver evento"/repertório; **repertório editável na tela do evento**; Admin ganhou **Solicitações de entrada** e perdeu o CRUD de músicas. Validado por API (aprovar/sair/criar música). ▶ NEXT: testar v2.1 no browser |

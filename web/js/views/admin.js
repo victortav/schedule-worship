@@ -1,12 +1,12 @@
 // =====================================================================
-// Admin: eventos (+repertório), membros (papéis/instrumentos) e igrejas
+// Admin: eventos · solicitações de entrada · membros · igrejas
+// (o repertório tem página própria: views/repertorio.js)
 // =====================================================================
 import {
   fetchUpcomingEvents, fetchEventStatus, fetchMembers, fetchInstruments, fetchProfiles,
   adminCreateEvent, adminDeleteEvent, adminToggleActive, adminSetInstruments,
   adminSetChurchMemberRole, adminRemoveChurchMember, adminAddChurchMember,
-  fetchSongs, adminCreateSong, adminUpdateSong, adminDeleteSong, adminSetEventSongs,
-  fetchEventSongs, fetchAllChurches, adminCreateChurch,
+  fetchChurchRequests, decideJoinRequest, fetchAllChurches, adminCreateChurch,
 } from '../api.js';
 import { $, $$, esc, fmtWhen, relDay, statusBadge, avatar, toast } from '../ui.js';
 
@@ -20,15 +20,16 @@ export const Admin = {
     }
     const churchId = window.ACTIVE_CHURCH_ID;
     const isSys = ME.role === 'system_admin';
-    const [events, status, members, instruments, songs, profiles, allChurches] = await Promise.all([
-      fetchUpcomingEvents(churchId),
-      fetchEventStatus(churchId),
-      fetchMembers(churchId),
-      fetchInstruments(),
-      fetchSongs(churchId),
-      fetchProfiles(),
-      isSys ? fetchAllChurches() : Promise.resolve([]),
-    ]);
+    const [events, status, members, instruments, profiles, requests, allChurches] =
+      await Promise.all([
+        fetchUpcomingEvents(churchId),
+        fetchEventStatus(churchId),
+        fetchMembers(churchId),
+        fetchInstruments(),
+        fetchProfiles(),
+        fetchChurchRequests(churchId),
+        isSys ? fetchAllChurches() : Promise.resolve([]),
+      ]);
     const stMap = Object.fromEntries(status.map((r) => [r.id, r]));
     const memberIds = new Set(members.map((m) => m.id));
     const candidates = profiles.filter((p) => p.active && !memberIds.has(p.id));
@@ -36,7 +37,10 @@ export const Admin = {
     el.innerHTML = `
       <h1>Administração <span class="muted small">⛪ ${esc(window.ACTIVE_CHURCH?.name || '')}</span></h1>
 
-      <h2>📅 Novo evento</h2>
+      <h2>📥 Solicitações de entrada ${requests.length ? `<span class="badge b-alerta">${requests.length}</span>` : ''}</h2>
+      <div id="ad-req"></div>
+
+      <h2 style="margin-top:24px">📅 Novo evento</h2>
       <div class="card">
         <div class="form-grid">
           <label class="field"><span>Título</span><input id="ev-title" placeholder="Ensaio da semana"></label>
@@ -52,18 +56,6 @@ export const Admin = {
         <div class="form-actions"><button class="btn primary" id="ev-add">Criar evento</button></div>
       </div>
       <div id="ad-events" style="margin-top:12px"></div>
-
-      <h2 style="margin-top:24px">🎵 Repertório da igreja</h2>
-      <div class="card">
-        <div class="form-grid">
-          <label class="field"><span>Música</span><input id="sg-title" placeholder="Nome da música"></label>
-          <label class="field"><span>Artista</span><input id="sg-artist" placeholder="Nome do artista"></label>
-          <label class="field"><span>Tom</span><input id="sg-key" placeholder="Ex.: G, Dm"></label>
-          <label class="field full"><span>Link (letra/cifra)</span><input id="sg-link" placeholder="https://..."></label>
-        </div>
-        <div class="form-actions"><button class="btn primary" id="sg-add">Adicionar música</button></div>
-      </div>
-      <div id="ad-songs" style="margin-top:12px"></div>
 
       <h2 style="margin-top:24px">👥 Membros</h2>
       ${
@@ -99,6 +91,43 @@ export const Admin = {
       }
     `;
 
+    // ---------------- Solicitações de entrada ----------------
+    const reqBox = $('#ad-req', el);
+    if (!requests.length) {
+      reqBox.innerHTML = '<p class="muted small">Nenhuma solicitação pendente.</p>';
+    } else {
+      for (const r of requests) {
+        const row = document.createElement('div');
+        row.className = 'card row';
+        row.style.alignItems = 'center';
+        row.innerHTML = `
+          ${avatar(r.full_name)}
+          <div class="grow"><strong>${esc(r.full_name)}</strong>
+            <div class="muted small">pediu para entrar nesta igreja</div></div>
+          <button class="btn small primary" data-acc="${r.profile_id}">Aceitar</button>
+          <button class="btn small danger" data-rej="${r.profile_id}">Recusar</button>`;
+        reqBox.appendChild(row);
+        $(`[data-acc="${r.profile_id}"]`, row).onclick = async () => {
+          try {
+            await decideJoinRequest(churchId, r.profile_id, true);
+            toast('Entrada aprovada');
+            this.render(el);
+          } catch {
+            /* toast na api */
+          }
+        };
+        $(`[data-rej="${r.profile_id}"]`, row).onclick = async () => {
+          try {
+            await decideJoinRequest(churchId, r.profile_id, false);
+            toast('Solicitação recusada');
+            this.render(el);
+          } catch {
+            /* toast na api */
+          }
+        };
+      }
+    }
+
     // ---------------- pickers (flatpickr) ----------------
     const fp = window.flatpickr;
     if (fp) {
@@ -133,12 +162,10 @@ export const Admin = {
       }
     };
 
-    // ---------------- Evento: lista + excluir + repertório ----------------
+    // ---------------- Evento: lista ----------------
     const evList = $('#ad-events', el);
     if (!events.length) evList.innerHTML = '<p class="muted small">Nenhum evento futuro.</p>';
     for (const ev of events) {
-      const cur = await fetchEventSongs(ev.id);
-      const curIds = new Set(cur.map((s) => s.id));
       const row = document.createElement('div');
       row.className = 'card';
       row.innerHTML = `
@@ -150,21 +177,8 @@ export const Admin = {
           ${stMap[ev.id] ? statusBadge(stMap[ev.id]) : ''}
           <a class="btn small ghost" href="#/evento/${ev.id}">ver</a>
           <button class="btn small danger" data-del="${ev.id}">excluir</button>
-        </div>
-        <details style="margin-top:8px">
-          <summary class="muted small">🎵 Repertório (${cur.length} selecionada${cur.length === 1 ? '' : 's'})</summary>
-          <div class="inst-picks" style="margin-top:8px">
-            ${songs
-              .map(
-                (s) =>
-                  `<label><input type="checkbox" value="${s.id}" data-ev="${ev.id}" ${curIds.has(s.id) ? 'checked' : ''}> ${esc(s.title)}${s.music_key ? ' (' + esc(s.music_key) + ')' : ''}</label>`
-              )
-              .join('') || '<span class="muted small">Cadastre músicas em “Repertório da igreja”.</span>'}
-          </div>
-          <div class="form-actions"><button class="btn small primary" data-save-rep="${ev.id}">Salvar repertório</button></div>
-        </details>`;
+        </div>`;
       evList.appendChild(row);
-
       $(`[data-del="${ev.id}"]`, row).onclick = async () => {
         if (!confirm(`Excluir "${ev.title}"?`)) return;
         try {
@@ -175,82 +189,7 @@ export const Admin = {
           /* toast na api */
         }
       };
-      $(`[data-save-rep="${ev.id}"]`, row).onclick = async () => {
-        const ids = $$(`[data-ev="${ev.id}"]:checked`, row).map((c) => c.value);
-        try {
-          await adminSetEventSongs(ev.id, ids);
-          toast('Repertório salvo');
-        } catch {
-          /* toast na api */
-        }
-      };
     }
-
-    // ---------------- Músicas: lista + editar/excluir + criar ----------------
-    const sgList = $('#ad-songs', el);
-    if (!songs.length) sgList.innerHTML = '<p class="muted small">Nenhuma música cadastrada.</p>';
-    for (const s of songs) {
-      const row = document.createElement('div');
-      row.className = 'list-row';
-      row.innerHTML = `
-        <div class="grow">
-          <strong>${esc(s.title)}</strong>
-          <div class="muted small">${esc(s.artist || '—')}${s.music_key ? ' · Tom: ' + esc(s.music_key) : ''}${
-            s.link ? ` · <a href="${esc(s.link)}" target="_blank" rel="noopener">link</a>` : ''
-          }</div>
-        </div>
-        <button class="btn small ghost" data-edit-song="${s.id}">editar</button>
-        <button class="btn small danger" data-del-song="${s.id}">excluir</button>`;
-      sgList.appendChild(row);
-      $(`[data-del-song="${s.id}"]`, row).onclick = async () => {
-        if (!confirm(`Excluir "${s.title}"?`)) return;
-        try {
-          await adminDeleteSong(s.id);
-          toast('Música excluída');
-          this.render(el);
-        } catch {
-          /* toast na api */
-        }
-      };
-      $(`[data-edit-song="${s.id}"]`, row).onclick = async () => {
-        const title = prompt('Nome da música:', s.title || '');
-        if (title === null || !title.trim()) return;
-        const artist = prompt('Artista:', s.artist || '');
-        if (artist === null) return;
-        const key = prompt('Tom:', s.music_key || '');
-        if (key === null) return;
-        const link = prompt('Link (letra/cifra):', s.link || '');
-        if (link === null) return;
-        try {
-          await adminUpdateSong(s.id, {
-            title: title.trim(),
-            artist: artist.trim() || null,
-            music_key: key.trim() || null,
-            link: link.trim() || null,
-          });
-          toast('Música atualizada');
-          this.render(el);
-        } catch {
-          /* toast na api */
-        }
-      };
-    }
-    $('#sg-add', el).onclick = async () => {
-      const title = $('#sg-title', el).value.trim();
-      if (!title) return toast('Informe o nome da música.', 'erro');
-      try {
-        await adminCreateSong(churchId, {
-          title,
-          artist: $('#sg-artist', el).value.trim() || null,
-          music_key: $('#sg-key', el).value.trim() || null,
-          link: $('#sg-link', el).value.trim() || null,
-        });
-        toast('Música adicionada');
-        this.render(el);
-      } catch {
-        /* toast na api */
-      }
-    };
 
     // ---------------- Membros ----------------
     const memList = $('#ad-members', el);

@@ -71,6 +71,74 @@ export async function adminRemoveChurchMember(churchId, profileId) {
 }
 
 // ------------------------------------------------------------------
+// Entrada/saída de igreja (com aprovação do admin)
+// ------------------------------------------------------------------
+export async function fetchMyRequests(userId) {
+  const { data, error } = await supabase
+    .from('church_join_requests').select('church_id, status').eq('profile_id', userId);
+  if (error) return fail(error, 'join requests');
+  return data;
+}
+
+export async function requestJoinChurch(user, churchId) {
+  const { error } = await supabase
+    .from('church_join_requests')
+    .upsert(
+      { church_id: churchId, profile_id: user.id, status: 'pending', decided_at: null },
+      { onConflict: 'church_id,profile_id' }
+    );
+  if (error) return fail(error, 'join request insert');
+}
+
+export async function cancelJoinRequest(user, churchId) {
+  const { error } = await supabase
+    .from('church_join_requests').delete()
+    .eq('church_id', churchId).eq('profile_id', user.id);
+  if (error) return fail(error, 'join request cancel');
+}
+
+// O próprio membro sai de uma igreja
+export async function leaveChurch(user, churchId) {
+  const { error } = await supabase
+    .from('church_members').delete()
+    .eq('church_id', churchId).eq('profile_id', user.id);
+  if (error) return fail(error, 'leave church');
+}
+
+// Admin: solicitações pendentes da igreja (com nome do solicitante)
+export async function fetchChurchRequests(churchId) {
+  const { data: req, error } = await supabase
+    .from('church_join_requests').select('profile_id, status, created_at')
+    .eq('church_id', churchId).eq('status', 'pending');
+  if (error) return fail(error, 'church requests');
+  if (!req.length) return [];
+  const ids = req.map((r) => r.profile_id);
+  const { data: profs, error: e2 } = await supabase
+    .from('profiles').select('id, full_name').in('id', ids);
+  if (e2) return fail(e2, 'profiles');
+  const byId = Object.fromEntries(profs.map((p) => [p.id, p]));
+  return req.map((r) => ({ ...r, full_name: byId[r.profile_id]?.full_name || '—' }));
+}
+
+// Admin: aprova (vira membro) ou recusa
+export async function decideJoinRequest(churchId, profileId, approve) {
+  const { error } = await supabase
+    .from('church_join_requests')
+    .update({ status: approve ? 'approved' : 'rejected', decided_at: new Date().toISOString() })
+    .eq('church_id', churchId).eq('profile_id', profileId);
+  if (error) return fail(error, 'decide request');
+  if (approve) {
+    const { error: e2 } = await supabase
+      .from('church_members')
+      .upsert(
+        { church_id: churchId, profile_id: profileId, role: 'membro' },
+        { onConflict: 'church_id,profile_id' }
+      );
+    if (e2) return fail(e2, 'approve add member');
+  }
+}
+
+// ------------------------------------------------------------------
 // Catálogo global: instrumentos, perfis, licenças
 // ------------------------------------------------------------------
 export async function fetchInstruments() {

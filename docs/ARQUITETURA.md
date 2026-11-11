@@ -87,7 +87,8 @@ schedule-worship/
 | `#/meu-agenda` (inicial) | membro | eventos futuros que **preciso responder**: [Vou 🎶] / [Não vou] + **1+ instrumentos**; minhas licenças |
 | `#/dashboard` | todos | cards dos próximos eventos: 🔴 **crítico** (sem voz OU sem base) · 🟡 **alerta** (≤ metade confirmada) · 🟢 ok |
 | `#/calendario` | todos | calendário mensal (cor = criticidade) + navegação ‹ › Hoje; clique → evento |
-| `#/evento/:id` | todos | detalhe: status, **repertório**, minha resposta e participação de todos |
+| `#/repertorio` | membro | biblioteca de músicas da igreja (CRUD) + associação por evento — **aberto a membros** |
+| `#/evento/:id` | todos | detalhe: status, **repertório** (ver **e** editar), minha resposta e participação |
 | `#/membros` | todos | roster da igreja ativa: instrumentos + licenças |
 | `#/perfil` | todos | meus dados, **editar meus instrumentos**, minhas licenças |
 | `#/admin` | admin da igreja / system_admin | eventos (com date/time picker), repertório (músicas + associação), membros (papel/instrumentos/ativo) e **igrejas** (só system_admin) |
@@ -270,15 +271,16 @@ language sql stable security definer set search_path = public as $$
 
 Padrão das policies (todas em `docs/../supabase/schema.sql`):
 
-- **churches** — `select` se `is_member_of(id)`; escrita só `system_admin`.
-- **church_members** — `select` se membro da igreja; escrita se `is_admin_of(church_id)`.
+- **churches** — `select` para **qualquer logado** (para poder pedir entrada); escrita só `system_admin`.
+- **church_members** — `select` se membro (ou a própria linha); admin escreve; o próprio pode **sair** (`profile_id = auth.uid()`).
 - **profiles** — `select` se *self* / `shares_church` / `system_admin`; escrita se `admin_of_profile(id)`.
 - **instruments** — todos leem; escrita só `system_admin`.
 - **member_instruments** — `select` logados; escrita se `profile_id = auth.uid()` **ou** `admin_of_profile(profile_id)` (⇒ o membro edita os próprios instrumentos).
 - **events** — `select` se `is_member_of(church_id)`; escrita se `is_admin_of(church_id)`.
 - **event_members / event_member_instruments** — leitura se membro da igreja **do evento** (`is_member_of(event_church(event_id))`); escrita se `profile_id = auth.uid()` (a própria) ou admin da igreja do evento.
 - **absences** — leitura logados; escrita própria (ou `system_admin`).
-- **songs / event_songs** — leitura membros da igreja; escrita **só admin**.
+- **songs / event_songs** — membros da igreja leem **e escrevem** (repertório aberto — não só admin).
+- **church_join_requests** — o próprio cria/vê/cancela; o **admin da igreja** vê e decide (aprovar ⇒ vira membro).
 
 ## 7. Criticidade — view `event_status` (por igreja)
 
@@ -334,9 +336,9 @@ left join total t on t.church_id = e.church_id;
 
 - **`songs`** — biblioteca da igreja (Artista, Música, **Tom**, Link letra/cifra). CRUD **só admin**.
 - **`event_songs`** — músicas de cada evento, com **ordem** (`position`). Só admin associa.
-- **Admin** (`views/admin.js`): cria/edita/exclui músicas ("Repertório da igreja") e marca, por
-  evento, quais entram (checkboxes + "Salvar repertório").
-- **Todos** veem o repertório no **detalhe do evento** (`views/evento.js`), com link de cifra.
+- **Página própria** (`views/repertorio.js`, rota `#/repertorio`): CRUD de músicas + associação
+  por evento — **aberta a qualquer membro** (não só admin).
+- **No detalhe do evento** (`views/evento.js`): ver **e** editar o repertório (checkboxes + salvar).
 
 ## 9. Frontend — contexto de igreja, tema e fluxo
 
