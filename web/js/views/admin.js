@@ -9,6 +9,7 @@ import {
   fetchChurchRequests, decideJoinRequest, fetchAllChurches, adminCreateChurch,
 } from '../api.js';
 import { $, $$, esc, fmtWhen, relDay, statusBadge, avatar, toast } from '../ui.js';
+import { mountInstrumentPicker } from './_shared.js';
 
 export const Admin = {
   async render(el) {
@@ -209,15 +210,14 @@ export const Admin = {
             <option value="admin" ${m.church_role === 'admin' ? 'selected' : ''}>admin</option>
           </select>
         </div>
-        <div class="inst-picks" style="margin-top:8px">
-          ${instruments.map((i) => `<label><input type="checkbox" value="${i.id}" data-mi="${m.id}" ${myIds.includes(i.id) ? 'checked' : ''}> ${esc(i.name)}</label>`).join('')}
-        </div>
+        <div data-pick="${m.id}" style="margin-top:8px"></div>
         <div class="form-actions">
           <button class="btn small primary" data-save-mi="${m.id}">Salvar instrumentos</button>
           <button class="btn small ghost" data-toggle-active="${m.id}">${m.active ? 'Desativar' : 'Reativar'}</button>
           ${m.id !== ME.id ? `<button class="btn small danger" data-remove="${m.id}">Remover da igreja</button>` : ''}
         </div>`;
       memList.appendChild(row);
+      const instPicker = mountInstrumentPicker($(`[data-pick="${m.id}"]`, row), instruments, myIds);
 
       $(`[data-role="${m.id}"]`, row).onchange = async (e) => {
         try {
@@ -228,7 +228,7 @@ export const Admin = {
         }
       };
       $(`[data-save-mi="${m.id}"]`, row).onclick = async () => {
-        const ids = $$(`[data-mi="${m.id}"]:checked`, row).map((c) => Number(c.value));
+        const ids = instPicker.getIds();
         try {
           await adminSetInstruments(m.id, ids);
           toast('Instrumentos salvos');

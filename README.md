@@ -11,11 +11,12 @@ criticidade** que mostra onde falta gente (sem voz, sem base ou com poucas confi
 - **Meu agenda** — pendências, botões *Vou / Não vou* e escolha de 1+ instrumentos
 - **Dashboard de criticidade** — 🔴 sem voz/sem base · 🟡 ≤ metade confirmada · 🟢 ok (por igreja)
 - **Calendário** mensal + **detalhe do evento** (participação + **repertório**)
-- **Repertório** — página própria (`#/repertorio`): biblioteca de músicas (Artista, Música, Tom, Link) + associação por evento; **editável por qualquer membro**
+- **Repertório** — página própria (`#/repertorio`): biblioteca **paginada** (10/pág, ordenação por nome/artista) + associação por evento com **busca dinâmica** e **ordem** das músicas; editável por qualquer membro
 - **Entrar/sair de igreja** — no Perfil; a entrada passa por **aprovação do admin** da igreja
-- **Membros** — instrumentos de cada um + licenças; cada membro edita **os próprios** instrumentos
+- **Membros** — roster com instrumentos (seleção por **busca**) + licenças; cada membro edita **os próprios** instrumentos
 - **Admin** — eventos (com date/time picker), **solicitações de entrada**, membros e igrejas
-- **Tema claro/escuro** (botão no topo) · **Status** em cards com acesso ao evento/repertório
+- **Compartilhar** — no Status e no evento, gera um **texto para WhatsApp** (título, data/hora, confirmados + instrumentos e repertório)
+- **Tema claro/escuro** (botão no topo) · **Status** em cards
 
 ## 🧱 Stack
 

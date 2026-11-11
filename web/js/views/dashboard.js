@@ -4,6 +4,7 @@
 // =====================================================================
 import { fetchEventStatus, fetchEventSongs } from '../api.js';
 import { $, esc, fmtWhen, relDay, statusBadge, statusReasons } from '../ui.js';
+import { shareEvent } from './_shared.js';
 
 export const Dashboard = {
   async render(el) {
@@ -59,8 +60,16 @@ export const Dashboard = {
               ? `<a class="btn small ghost" href="#/evento/${r.id}">🎵 ${songs.length} música${songs.length > 1 ? 's' : ''}</a>`
               : '<span class="muted small" style="align-self:center">sem repertório</span>'
           }
+          <button class="btn small ghost" data-share="${r.id}">📤 Compartilhar</button>
         </div>`;
       list.appendChild(card);
+      $(`[data-share="${r.id}"]`, card).onclick = async () => {
+        try {
+          await shareEvent(r.id);
+        } catch {
+          /* toast na api */
+        }
+      };
     }
   },
 };

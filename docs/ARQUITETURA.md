@@ -336,9 +336,9 @@ left join total t on t.church_id = e.church_id;
 
 - **`songs`** — biblioteca da igreja (Artista, Música, **Tom**, Link letra/cifra). CRUD **só admin**.
 - **`event_songs`** — músicas de cada evento, com **ordem** (`position`). Só admin associa.
-- **Página própria** (`views/repertorio.js`, rota `#/repertorio`): CRUD de músicas + associação
-  por evento — **aberta a qualquer membro** (não só admin).
-- **No detalhe do evento** (`views/evento.js`): ver **e** editar o repertório (checkboxes + salvar).
+- **Página própria** (`views/repertorio.js`, rota `#/repertorio`): biblioteca **paginada (10 + ordenação por nome/artista)** + associação por evento via **picker** (busca dinâmica + ordem) — **aberta a qualquer membro**.
+- **No detalhe do evento** (`views/evento.js`): **picker** para buscar/remover/reordenar o repertório (a ordem vira `position`).
+- **Compartilhar** (`_shared.js::shareEvent`): gera texto p/ WhatsApp (título, data/hora, confirmados + instrumentos e repertório) e abre um modal com *Copiar* / *Abrir WhatsApp*.
 
 ## 9. Frontend — contexto de igreja, tema e fluxo
 
