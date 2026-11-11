@@ -1,474 +1,432 @@
-# 🎸 Agenda da Banda — Arquitetura
+# 🎸 Agenda da Banda — Arquitetura (v2)
 
-App web para **ensaios e eventos** de banda: confirmação de presença, instrumento que cada
-membro vai tocar, períodos de licença e um **dashboard de criticidade** (ensaios/eventos
-sem base, sem voz ou com poucas pessoas confirmadas).
-
-> **⚠️ Atualização v2 — multi-igreja + repertório (este documento descreve a v1):**
-> a v2 adiciona **multi-igreja** (`churches` + `church_members` N:N, papel **por igreja**),
-> o papel global **`system_admin`**, `church_id` em `events`/`songs`, **repertório**
-> (`songs` + `event_songs`, escrita só de admin), catálogo de **21 instrumentos**,
-> edição dos **próprios instrumentos** pelo membro, **seletor de igreja** e **tema claro/escuro**.
-> Referência atualizada: `README.md` e `docs/TASKS.md`. (Revisão completa deste arquivo pendente.)
+App web **multi-igreja** para organizar **ensaios e eventos** de banda: confirmação de
+presença, instrumento que cada membro vai tocar, períodos de licença, **repertório** de
+músicas por evento e um **dashboard de criticidade** (ensaios/eventos sem voz, sem base ou
+com poucas confirmações) — **tudo escopado por igreja**.
 
 ## 1. Stack (e por quê)
 
 | Camada | Escolha | Por quê |
 |---|---|---|
-| Frontend | HTML + CSS + JS puro (ES Modules) — **sem build step** | "Tudo em HTML": vira site 100% estático, roda em Vercel **e** em Hostinger (até o compartilhado) sem Node, sem compilação, sem `.htaccess` |
-| UI/Design | CSS próprio moderno (custom properties, Grid, mobile-first, dark mode) | Leve, sem framework, responsivo em celular/tablet/desktop |
-| Cliente do banco | `@supabase/supabase-js` v2 via **CDN** (esm.sh) | Sem npm, sem bundle |
-| Backend + banco | **Supabase** (Postgres + Auth + Row Level Security) | Banco gerenciado, auth com Google pronta, regras de permissão no próprio banco |
-| Autenticação | **Google OAuth** (fornecido pelo Supabase) | Login com Google sem gerenciar senha |
-| Hosting | Vercel **ou** Hostinger — o código é o mesmo | O site é estático; todo o backend vive na nuvem Supabase |
+| Frontend | HTML + CSS + JS puro (ES Modules) — **sem build step** | site 100% estático; roda em Vercel **e** Hostinger (até compartilhado) sem Node/compilação/`.htaccess` |
+| UI/Design | CSS próprio (custom properties, Grid, mobile-first, **temas claro/escuro**) + **flatpickr** (CDN) nos pickers | leve, responsivo, sem framework |
+| Cliente do banco | `@supabase/supabase-js` v2 via **CDN** (esm.sh) | sem npm, sem bundle |
+| Backend + banco | **Supabase** (Postgres + Auth + RLS) — **multi-tenant** | banco gerenciado; permissões no próprio banco |
+| Autenticação | **Google OAuth** (prod) · e-mail/senha autoconfirm (local) | login sem gerenciar senha |
+| Hospedagem | Vercel **ou** Hostinger (mesmo código) | site estático; backend vive na nuvem Supabase |
 
 Decisões-chave:
 
-- **Hash routing** (`app.html#/dashboard`): funciona em qualquer hospedagem sem
-  configurar rewrite de URL — essencial para dar certo no Hostinger compartilhado.
-- **Ensaios e eventos na mesma tabela** (`events.type`): uma única lógica de
-  confirmação e de criticidade para os dois.
-- **Voz é um "instrumento"**: quem canta e toca violão registra os dois, e ao
-  confirmar um evento escolhe com o quê vai tocar.
-- **Criticidade calculada no banco** (view `event_status`): a regra vive em um
-  único lugar, e o dashboard do admin e a agenda do membro usam a mesma fonte.
+- **Hash routing** (`app.html#/dashboard`): funciona em qualquer hospedagem, sem rewrites/`.htaccess`.
+- **Multi-igreja (multi-tenant)**: `churches` + `church_members` (N:N com papel **por igreja**);
+  todo dado é filtrado por `church_id`. O **admin de sistema** (`profiles.role`) cria igrejas
+  e administra tudo.
+- **Ensaios e eventos na mesma tabela** (`events.type`) — uma lógica só de confirmação/criticidade.
+- **Voz é um "instrumento"** (category `voz`): quem canta e toca registra os dois.
+- **Criticidade no banco** (view `event_status`, **por igreja**) — fonte única p/ dashboard e agenda.
+- **Repertório** por evento (`songs` + `event_songs`) — escrita só de **admin**.
+- **Membros editam os próprios instrumentos** (`member_instruments`).
 
 ## 2. Visão geral
 
 ```
  Navegador (celular / tablet / desktop)
- ┌─────────────────────────────────────────────────────┐
- │ index.html          → landing + botão "Entrar c/ Google"
- │ login-callback.html → finaliza o OAuth e guarda sessão
- │ app.html            → o app (hash routing, 1 <main>)
- │ css/styles.css      → design system responsivo
- │ js/*.js             → config · client · api · router · views
- └──────────────────────────┬──────────────────────────┘
-                            │ HTTPS (API do Supabase)
-                            ▼
- ┌─────────────────────────────────────────────────────┐
- │ SUPABASE (nuvem)                                    │
- │  • Auth (Google OAuth)                              │
- │  • Postgres + RLS:                                  │
- │      profiles · instruments · member_instruments    │
- │      events · event_members · em_instruments · abs  │
- │      view event_status (criticidade)                │
- └─────────────────────────────────────────────────────┘
- Hospedagem: Vercel e/ou Hostinger (apenas os arquivos estáticos)
+ ┌──────────────────────────────────────────────────────┐
+ │ index.html / login-callback.html → autenticação       │
+ │ app.html → o app (hash routing, 1 <main>)             │
+ │ css/styles.css → design system (temas claro/escuro)   │
+ │ js/*.js → config · client · ui · api · app(router)    │
+ │           + views/                                    │
+ └───────────────────────────┬───────────────────────────┘
+                             │ HTTPS (API do Supabase)
+                             ▼
+ ┌──────────────────────────────────────────────────────┐
+ │ SUPABASE (nuvem)                                       │
+ │  • Auth (Google OAuth / e-mail)                        │
+ │  • Postgres + RLS (multi-igreja):                      │
+ │      churches · church_members · profiles · instruments│
+ │      member_instruments · events · event_members ·     │
+ │      event_member_instruments · absences ·             │
+ │      songs · event_songs · view event_status           │
+ └──────────────────────────────────────────────────────┘
+ Hospedagem: Vercel e/ou Hostinger (apenas arquivos estáticos)
 ```
 
 ## 3. Estrutura de pastas
 
 ```
-schedule/
-├─ index.html               # Landing + login (Google)
-├─ login-callback.html      # Recebe o redirect do OAuth
-├─ app.html                 # App protegido: layout (nav) + <main id="view">
-├─ css/
-│  └─ styles.css            # vars de tema, grid, cards, chips, bottom-nav/sidebar
-├─ js/
-│  ├─ config.js             # SUPABASE_URL + SUPABASE_ANON_KEY
-│  ├─ client.js             # createClient, sessão, is_admin(), guard de login
-│  ├─ api.js                # 1 função por consulta (eventos, meus pendentes, etc.)
-│  ├─ router.js             # #/meu-agenda #/dashboard #/agenda #/membros #/admin
-│  ├─ main.js               # boot: auth guard, layout, navegação
-│  └─ views/
-│     ├─ dashboard.js       # dashboard de criticidade
-│     ├─ meu-agenda.js      # "o que eu preciso confirmar" (tela inicial)
-│     ├─ agenda.js          # calendário mensal + detalhe do ensaio/evento
-│     ├─ membros.js         # roster, instrumentos, licenças
-│     └─ admin.js           # CRUD de eventos, membros, instrumentos, regras
-└─ docs/
-   └─ ARQUITETURA.md        # este arquivo
+schedule-worship/
+├─ web/                       # O APP (canônico; o Docker serve e a produção copia)
+│  ├─ index.html              # Landing + login (Google / e-mail local)
+│  ├─ login-callback.html     # Recebe o redirect do OAuth (PKCE)
+│  ├─ app.html                # App protegido: topbar (church-pick + tema) + nav + <main>
+│  ├─ css/styles.css          # design system: temas, grid, cards, .church-pick, .cal-nav
+│  └─ js/
+│     ├─ config.js            # CONFIG (URL + anon key) + IS_LOCAL_ENV
+│     ├─ client.js            # createClient (esm.sh), sessão, googleOAuthUrl()
+│     ├─ ui.js                # helpers DOM/datas/toasts + tema (initTheme/toggleTheme)
+│     ├─ api.js               # 1 função por consulta (escopo por igreja, songs, churches)
+│     ├─ login.js             # tela de login
+│     ├─ app.js               # boot → perfil → igrejas → router hash
+│     └─ views/
+│        ├─ _shared.js        # mountAnswer (presença) · mountAbsences (licenças)
+│        ├─ meu-agenda.js · dashboard.js · calendario.js · evento.js
+│        └─ membros.js · perfil.js · admin.js
+├─ supabase/                  # schema.sql + seed.sql (o "dump" p/ a nuvem)
+├─ supabase-local/            # stack oficial Supabase (vendorizada) + docker-compose.app.yml
+├─ docs/                      # ARQUITETURA.md · STEERING.md · TASKS.md
+└─ dev-up / dev-down / dev-reset .(ps1|sh)   # ambiente (rodam via WSL)
 ```
 
 ## 4. Mapa de telas
 
 | Rota | Quem | O que mostra |
 |---|---|---|
-| `/` (index.html) | todos | landing + "Entrar com Google" |
-| `#/meu-agenda` (inicial) | membro | eventos futuros que **preciso responder**: [Vou 🎶] / [Não vou] + escolha de **1 ou mais** instrumentos (ex.: Teclado + Voz); minhas licenças |
-| `#/dashboard` | todos (destaque admin) | cards dos próximos eventos: 🔴 **crítico** (sem voz confirmada OU sem base — Violão/Teclado) · 🟡 **alerta** (metade ou menos dos membros confirmados) · 🟢 ok |
-| `#/agenda` | todos | calendário mensal; cor do dia = criticidade; clique no evento → quem vai e com que instrumento |
-| `#/membros` | todos | cards de membros: foto, instrumentos (destacando o principal), licenças ativas |
-| `#/admin` | admin | criar/editar ensaios e eventos, gerenciar membros (ativar/desativar) e instrumentos |
+| `/` (index.html) | todos | landing + "Entrar com Google" (e e-mail no local) |
+| `#/meu-agenda` (inicial) | membro | eventos futuros que **preciso responder**: [Vou 🎶] / [Não vou] + **1+ instrumentos**; minhas licenças |
+| `#/dashboard` | todos | cards dos próximos eventos: 🔴 **crítico** (sem voz OU sem base) · 🟡 **alerta** (≤ metade confirmada) · 🟢 ok |
+| `#/calendario` | todos | calendário mensal (cor = criticidade) + navegação ‹ › Hoje; clique → evento |
+| `#/evento/:id` | todos | detalhe: status, **repertório**, minha resposta e participação de todos |
+| `#/membros` | todos | roster da igreja ativa: instrumentos + licenças |
+| `#/perfil` | todos | meus dados, **editar meus instrumentos**, minhas licenças |
+| `#/admin` | admin da igreja / system_admin | eventos (com date/time picker), repertório (músicas + associação), membros (papel/instrumentos/ativo) e **igrejas** (só system_admin) |
+
+No **topo** de todas as telas: seletor de **igreja** (quando o usuário tem 2+) e botão de **tema** (🌙/☀️).
 
 ## 5. Banco de dados (SQL completo — rodar no SQL Editor do Supabase)
 
-### 5.1 Tabelas
+### 5.1 Tabelas (v2: multi-igreja)
 
 ```sql
--- =========================================================
--- 1) TABELAS
--- =========================================================
-
--- 1.1 Perfil (1:1 com auth.users; criado automaticamente no 1º login)
-create table public.profiles (
-  id         uuid primary key references auth.users (id) on delete cascade,
-  full_name  text,
-  avatar_url text,
-  role       text not null default 'membro' check (role in ('admin', 'membro')),
-  active     boolean not null default true,
+-- 1.1 Igrejas (tenant)
+create table if not exists public.churches (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
   created_at timestamptz not null default now()
 );
 
--- 1.2 Instrumentos (Voz também é um "instrumento").
---     A criticidade usa a category: 'voz' (Voz) e 'base' (Violão/Teclado).
-create table public.instruments (
-  id       serial primary key,
-  name     text not null unique,
-  category text not null default 'outro'
-           check (category in ('voz', 'base', 'harmonia', 'ritmo', 'outro'))
+-- 1.2 Perfil (1:1 auth.users). role = papel GLOBAL
+create table if not exists public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  full_name text, avatar_url text,
+  role text not null default 'membro' check (role in ('system_admin','membro')),
+  active boolean not null default true,
+  created_at timestamptz not null default now()
 );
 
--- 1.3 Membro ⇄ Instrumento (muitos-a-muitos: "quem toca o quê")
-create table public.member_instruments (
-  profile_id    uuid not null references public.profiles (id) on delete cascade,
-  instrument_id int  not null references public.instruments (id) on delete cascade,
-  is_primary    boolean not null default false,
+-- 1.3 Membro ⇄ Igreja (N:N) + papel NA igreja
+create table if not exists public.church_members (
+  church_id uuid not null references public.churches (id) on delete cascade,
+  profile_id uuid not null references public.profiles (id) on delete cascade,
+  role text not null default 'membro' check (role in ('admin','membro')),
+  created_at timestamptz not null default now(),
+  primary key (church_id, profile_id)
+);
+
+-- 1.4 Instrumentos (catálogo GLOBAL). Voz também é instrumento.
+create table if not exists public.instruments (
+  id serial primary key,
+  name text not null unique,
+  category text not null default 'outro'
+           check (category in ('voz','base','harmonia','ritmo','outro'))
+);
+
+-- 1.5 Membro ⇄ Instrumento (global): "o que a pessoa toca"
+create table if not exists public.member_instruments (
+  profile_id uuid not null references public.profiles (id) on delete cascade,
+  instrument_id int not null references public.instruments (id) on delete cascade,
+  is_primary boolean not null default false,
   primary key (profile_id, instrument_id)
 );
 
--- 1.4 Ensaios E eventos (type discrimina; a lógica é a mesma)
-create table public.events (
-  id         uuid primary key default gen_random_uuid(),
-  title      text not null,
-  type       text not null check (type in ('ensaio', 'evento')),
-  location   text,
-  starts_at  timestamptz not null,
-  ends_at    timestamptz,
-  notes      text,
+-- 1.6 Ensaios E eventos (por igreja)
+create table if not exists public.events (
+  id uuid primary key default gen_random_uuid(),
+  church_id uuid not null references public.churches (id) on delete cascade,
+  title text not null,
+  type text not null check (type in ('ensaio','evento')),
+  location text, starts_at timestamptz not null, ends_at timestamptz, notes text,
   created_by uuid references public.profiles (id) on delete set null,
   created_at timestamptz not null default now()
 );
-create index events_starts_idx on public.events (starts_at);
+create index if not exists events_church_starts_idx on public.events (church_id, starts_at);
 
--- 1.5 Confirmação de presença: quem vai / não vai.
---     Sem linha = "pendente" (ainda não respondeu).
-create table public.event_members (
-  event_id   uuid not null references public.events (id) on delete cascade,
+-- 1.7 Confirmação (sem linha = pendente)
+create table if not exists public.event_members (
+  event_id uuid not null references public.events (id) on delete cascade,
   profile_id uuid not null references public.profiles (id) on delete cascade,
-  status     text not null default 'pendente'
-             check (status in ('pendente', 'confirmado', 'ausente')),
+  status text not null default 'pendente'
+         check (status in ('pendente','confirmado','ausente')),
   updated_at timestamptz not null default now(),
   primary key (event_id, profile_id)
 );
 
--- 1.6 Instrumentos da confirmação: 1+ por pessoa (ex.: Teclado + Voz).
---     O app reescreve as linhas a cada confirmação (delete + insert das próprias).
-create table public.event_member_instruments (
-  event_id      uuid not null references public.events (id) on delete cascade,
-  profile_id    uuid not null references public.profiles (id) on delete cascade,
-  instrument_id int  not null references public.instruments (id) on delete cascade,
+-- 1.8 Instrumentos da confirmação (1+ por pessoa)
+create table if not exists public.event_member_instruments (
+  event_id uuid not null references public.events (id) on delete cascade,
+  profile_id uuid not null references public.profiles (id) on delete cascade,
+  instrument_id int not null references public.instruments (id) on delete cascade,
   primary key (event_id, profile_id, instrument_id)
 );
 
--- 1.7 Licenças / indisponibilidades por período
-create table public.absences (
-  id         serial primary key,
+-- 1.9 Licenças (global, por pessoa)
+create table if not exists public.absences (
+  id serial primary key,
   profile_id uuid not null references public.profiles (id) on delete cascade,
-  start_date date not null,
-  end_date   date not null,
-  reason     text,
+  start_date date not null, end_date date not null, reason text,
   created_at timestamptz not null default now(),
   check (end_date >= start_date)
 );
-create index absences_profile_idx on public.absences (profile_id, start_date, end_date);
+
+-- 1.10 Repertório: biblioteca de músicas por igreja
+create table if not exists public.songs (
+  id uuid primary key default gen_random_uuid(),
+  church_id uuid not null references public.churches (id) on delete cascade,
+  artist text, title text not null, music_key text, link text,
+  created_at timestamptz not null default now()
+);
+
+-- 1.11 Associação evento ⇄ música (repertório do evento, com ordem)
+create table if not exists public.event_songs (
+  event_id uuid not null references public.events (id) on delete cascade,
+  song_id uuid not null references public.songs (id) on delete cascade,
+  position int not null default 0,
+  primary key (event_id, song_id)
+);
 ```
 
-### 5.2 Trigger (perfil automático) + seed
+### 5.2 Trigger de perfil + catálogo de instrumentos
 
 ```sql
--- 2) Perfil é criado sozinho no primeiro login
+-- 2) Perfil criado sozinho no 1º login
 create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 begin
   insert into public.profiles (id, full_name, avatar_url)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data ->> 'full_name', new.email),
-    new.raw_user_meta_data ->> 'avatar_url'
-  )
+  values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', new.email),
+          new.raw_user_meta_data ->> 'avatar_url')
   on conflict (id) do nothing;
   return new;
-end;
-$$;
-
+end; $$;
 create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
+  after insert on auth.users for each row execute function public.handle_new_user();
 
--- 3) Seed: instrumentos (a category é usada pela criticidade)
-insert into public.instruments (name, category) values
-  ('Voz',      'voz'),
-  ('Violão',   'base'),
-  ('Teclado',  'base'),
-  ('Baixo',    'ritmo'),
-  ('Bateria',  'ritmo'),
-  ('Guitarra', 'harmonia')
-on conflict (name) do nothing;
-
--- Regras de status (fixas, implementadas na view event_status):
---   🔴 crítico = sem voz confirmada OU sem base (Violão/Teclado) confirmada
---   🟡 alerta  = metade ou menos dos membros ativos confirmados
+-- 3) Catálogo de instrumentos (id fixo; a category alimenta a criticidade)
+insert into public.instruments (id, name, category) values
+  (1,'Voz','voz'), (2,'Teclado','base'), (3,'Violão','base'), (4,'Guitarra','harmonia'),
+  (5,'Baixo','base'), (6,'Bateria Acústica','ritmo'), (7,'Bateria Eletrônica','ritmo'),
+  (8,'Violino','harmonia'), (9,'Violoncelo','harmonia'), (10,'Viola','harmonia'),
+  (11,'Contrabaixo','base'), (12,'Saxofone','harmonia'), (13,'Trompete','harmonia'),
+  (14,'Trombone','harmonia'), (15,'Flauta','harmonia'), (16,'Clarinete','harmonia'),
+  (17,'Cajon','ritmo'), (18,'Pandeiro','ritmo'), (19,'Shaker','ritmo'),
+  (20,'Piano','base'), (21,'Órgão','base')
+on conflict (id) do update set name = excluded.name, category = excluded.category;
 ```
 
-### 5.3 Promover o primeiro admin (rodar uma vez, no SQL Editor)
+> Categorias usadas pela criticidade: **`voz`** (Voz) e **`base`** (Teclado, Violão, Baixo,
+> Contrabaixo, Piano, Órgão). `ritmo`/`harmonia` são informativas.
+
+### 5.3 Seed de desenvolvimento
+
+`supabase/seed.sql` cria 2 igrejas (**Anglicana Libertador** — recebe todos os dados atuais —
+e **Catedral Comunhão**), 8 usuários de teste (senha `123456`), eventos, confirmações e
+**repertório**. `ana@teste.com` é **admin de sistema**; `carla@` é admin da Catedral;
+`carla`/`diego`/`felipe` pertencem às **duas** igrejas (testam o seletor).
+
+### 5.4 Primeiro admin de sistema (rodar uma vez, no SQL Editor)
 
 ```sql
--- depois que VOCÊ logar com Google e o perfil existir:
-update public.profiles set role = 'admin'
-where id = (select id from public.profiles limit 1); -- ou: where full_name = 'Seu Nome'
+insert into public.churches (name) values ('Minha Igreja');
+update public.profiles set role = 'system_admin' where id = '<uuid-do-admin>';
+insert into public.church_members (church_id, profile_id, role)
+  select c.id, '<uuid-do-admin>', 'admin' from public.churches c where c.name = 'Minha Igreja';
 ```
 
-## 6. Segurança (Row Level Security)
+## 6. Segurança — Row Level Security (multi-igreja)
 
-Toda a proteção vive **no banco**: o app usa a `anon key` (pública por design) e o RLS
-bloqueia qualquer leitura/escrita fora das regras — mesmo que alguém chame a API diretamente.
-`auth.uid() is not null` = "logado"; nada é visível sem login.
+Toda a proteção vive **no banco** (o app usa a `anon key`, pública por design). `auth.uid()`
+= usuário logado. O acesso é **por igreja**: a pessoa vê o que pertence à(s) igreja(s) onde
+tem vínculo; quem administra uma igreja escreve nela; o `system_admin` administra tudo.
 
 ```sql
--- 4) Helper: usuário atual é admin?
-create or replace function public.is_admin()
-returns boolean
-language sql stable security definer set search_path = public
-as $$
-  select exists (
-    select 1 from public.profiles
-    where id = auth.uid() and role = 'admin'
-  );
-$$;
+-- Helpers (security definer ⇒ não sofrem RLS de dentro deles)
+create or replace function public.is_system_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.profiles where id = auth.uid() and role = 'system_admin'); $$;
 
--- 5) Habilitar RLS em tudo
-alter table public.profiles           enable row level security;
-alter table public.instruments        enable row level security;
-alter table public.member_instruments enable row level security;
-alter table public.events                    enable row level security;
-alter table public.event_members             enable row level security;
-alter table public.event_member_instruments  enable row level security;
-alter table public.absences                  enable row level security;
+create or replace function public.is_member_of(church uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.is_system_admin() or exists (select 1 from public.church_members
+    where church_id = church and profile_id = auth.uid()); $$;
 
--- profiles: logados leem (roster visível), só admin edita
-create policy "profiles_select"      on public.profiles for select
-  using (auth.uid() is not null);
-create policy "profiles_admin_write" on public.profiles for all
-  using (public.is_admin()) with check (public.is_admin());
+create or replace function public.is_admin_of(church uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.is_system_admin() or exists (select 1 from public.church_members
+    where church_id = church and profile_id = auth.uid() and role = 'admin'); $$;
 
--- instruments / member_instruments: logados leem, só admin edita
-create policy "inst_select"      on public.instruments for select
-  using (auth.uid() is not null);
-create policy "inst_admin_write" on public.instruments for all
-  using (public.is_admin()) with check (public.is_admin());
-create policy "mi_select"      on public.member_instruments for select
-  using (auth.uid() is not null);
-create policy "mi_admin_write" on public.member_instruments for all
-  using (public.is_admin()) with check (public.is_admin());
-
--- events: logados leem, só admin cria/edita/exclui
-create policy "events_select"      on public.events for select
-  using (auth.uid() is not null);
-create policy "events_admin_write" on public.events for all
-  using (public.is_admin()) with check (public.is_admin());
-
--- event_members: logados leem; cada um só mexe NA PRÓPRIA linha
-create policy "em_select"       on public.event_members for select
-  using (auth.uid() is not null);
-create policy "em_insert_own"   on public.event_members for insert
-  with check (profile_id = auth.uid());
-create policy "em_update_own"   on public.event_members for update
-  using (profile_id = auth.uid() or public.is_admin());
-create policy "em_delete_admin" on public.event_members for delete
-  using (public.is_admin());
-
--- absences: logados leem; cada um marca a própria (admin pode por qualquer um)
-create policy "abs_select"     on public.absences for select
-  using (auth.uid() is not null);
-create policy "abs_insert_own" on public.absences for insert
-  with check (profile_id = auth.uid());
-create policy "abs_update_own" on public.absences for update
-  using (profile_id = auth.uid() or public.is_admin());
-create policy "abs_delete_own" on public.absences for delete
-  using (profile_id = auth.uid() or public.is_admin());
-
--- event_member_instruments: logados leem; cada um só mexe na PRÓPRIA escolha
-create policy "emi_select"     on public.event_member_instruments for select
-  using (auth.uid() is not null);
-create policy "emi_insert_own" on public.event_member_instruments for insert
-  with check (profile_id = auth.uid());
-create policy "emi_update_own" on public.event_member_instruments for update
-  using (profile_id = auth.uid() or public.is_admin());
-create policy "emi_delete_own" on public.event_member_instruments for delete
-  using (profile_id = auth.uid() or public.is_admin());
+-- e ainda: shares_church(target uuid) · admin_of_profile(target uuid) · event_church(e uuid)
 ```
 
-## 7. Criticidade — view `event_status`
+Padrão das policies (todas em `docs/../supabase/schema.sql`):
 
-A regra de status vive em **uma única view**, com três níveis (crítico tem prioridade):
+- **churches** — `select` se `is_member_of(id)`; escrita só `system_admin`.
+- **church_members** — `select` se membro da igreja; escrita se `is_admin_of(church_id)`.
+- **profiles** — `select` se *self* / `shares_church` / `system_admin`; escrita se `admin_of_profile(id)`.
+- **instruments** — todos leem; escrita só `system_admin`.
+- **member_instruments** — `select` logados; escrita se `profile_id = auth.uid()` **ou** `admin_of_profile(profile_id)` (⇒ o membro edita os próprios instrumentos).
+- **events** — `select` se `is_member_of(church_id)`; escrita se `is_admin_of(church_id)`.
+- **event_members / event_member_instruments** — leitura se membro da igreja **do evento** (`is_member_of(event_church(event_id))`); escrita se `profile_id = auth.uid()` (a própria) ou admin da igreja do evento.
+- **absences** — leitura logados; escrita própria (ou `system_admin`).
+- **songs / event_songs** — leitura membros da igreja; escrita **só admin**.
 
-- 🔴 **crítico**: sem **voz** confirmada *ou* sem **base** (Violão/Teclado) confirmada
-- 🟡 **alerta**: não é crítico, mas tem **metade ou menos** dos membros confirmados
-- 🟢 **ok**: tem voz + base confirmadas e mais da metade dos membros confirmados
+## 7. Criticidade — view `event_status` (por igreja)
 
-> Denominador do "metade" = membros **ativos** em `profiles` (quem está de licença
-> continua contando como membro). O teste `confirmados * 2 <= membros` dá o resultado
-> exato mesmo com número ímpar de membros (3/7 = alerta, 4/7 = não).
+A regra vive em **uma única view** (`security_invoker` ⇒ respeita o RLS de quem consulta):
 
-Os contadores expostos (`vozes`, `bases`, `confirmados`, `membros`) alimentam os selos
-da UI ("Sem voz", "Sem base", "3/8 confirmados").
+- 🔴 **crítico** = sem **voz** confirmada **ou** sem **base** confirmada
+- 🟡 **alerta** = não é crítico, mas confirmados ≤ **metade** dos membros ativos da igreja
+- 🟢 **ok** = caso contrário
 
 ```sql
--- security_invoker (PG15+) faz a view respeitar o RLS de quem consulta
-create or replace view public.event_status security_invoker as
+create or replace view public.event_status with (security_invoker = true) as
 with confirm as (
-  -- 1 linha por (evento, membro confirmado), com as flags dos instrumentos escolhidos
-  select
-    em.event_id,
-    em.profile_id,
-    bool_or(i.category = 'voz')  as com_voz,
-    bool_or(i.category = 'base') as com_base
+  select em.event_id, em.profile_id,
+         bool_or(i.category = 'voz')  as com_voz,
+         bool_or(i.category = 'base') as com_base
   from public.event_members em
   left join public.event_member_instruments emi
-         on emi.event_id = em.event_id
-        and emi.profile_id = em.profile_id
+         on emi.event_id = em.event_id and emi.profile_id = em.profile_id
   left join public.instruments i on i.id = emi.instrument_id
   where em.status = 'confirmado'
   group by em.event_id, em.profile_id
 ),
 agg as (
-  select
-    event_id,
-    count(*)                         as confirmados,
-    count(*) filter (where com_voz)  as vozes,
-    count(*) filter (where com_base) as bases
-  from confirm
-  group by event_id
+  select event_id, count(*) as confirmados,
+         count(*) filter (where com_voz)  as vozes,
+         count(*) filter (where com_base) as bases
+  from confirm group by event_id
 ),
-total as (
-  select count(*) as membros from public.profiles where active
+total as (   -- membros ativos POR IGREJA
+  select cm.church_id, count(*) as membros
+  from public.church_members cm
+  join public.profiles p on p.id = cm.profile_id
+  where p.active
+  group by cm.church_id
 )
-select
-  e.id, e.title, e.type, e.location, e.starts_at, e.ends_at,
-  coalesce(a.confirmados, 0) as confirmados,
-  coalesce(a.vozes, 0)       as vozes,
-  coalesce(a.bases, 0)       as bases,
-  t.membros,
-  -- 🔴 crítico: sem voz OU sem base (Violão/Teclado) confirmada
-  (coalesce(a.vozes, 0) = 0 or coalesce(a.bases, 0) = 0) as e_critico,
-  -- 🟡 alerta: confirmados <= metade da banda (ex.: 4/8, 3/7)
-  (coalesce(a.confirmados, 0) * 2 <= t.membros)          as e_alerta
+select e.id, e.church_id, e.title, e.type, e.location, e.starts_at, e.ends_at,
+  coalesce(a.confirmados,0) as confirmados,
+  coalesce(a.vozes,0)       as vozes,
+  coalesce(a.bases,0)       as bases,
+  coalesce(t.membros,0)     as membros,
+  (coalesce(a.vozes,0) = 0 or coalesce(a.bases,0) = 0)     as e_critico,
+  (coalesce(a.confirmados,0) * 2 <= coalesce(t.membros,0)) as e_alerta
 from public.events e
-cross join total t
-left join agg a on a.event_id = e.id;
+left join agg a on a.event_id = e.id
+left join total t on t.church_id = e.church_id;
 ```
 
-> Comportamento: evento recém-criado (ninguém respondeu) já nasce `e_critico = true`
-> (0 confirmados) — "pede atenção" até alguém confirmar. É o que queremos.
+> Evento recém-criado (ninguém respondeu) já nasce `e_critico = true` — "pede atenção" até
+> alguém confirmar. O frontend filtra por igreja (`church_id`) e mostra os selos derivando
+> dos contadores (`vozes`, `bases`, `confirmados`, `membros`).
 
-## 8. Principal consulta do frontend ("Meu Agenda")
+## 8. Repertório (v2)
 
-Eventos do **futuro**, que eu **ainda não respondi**, e em que **não estou de licença**:
+- **`songs`** — biblioteca da igreja (Artista, Música, **Tom**, Link letra/cifra). CRUD **só admin**.
+- **`event_songs`** — músicas de cada evento, com **ordem** (`position`). Só admin associa.
+- **Admin** (`views/admin.js`): cria/edita/exclui músicas ("Repertório da igreja") e marca, por
+  evento, quais entram (checkboxes + "Salvar repertório").
+- **Todos** veem o repertório no **detalhe do evento** (`views/evento.js`), com link de cifra.
+
+## 9. Frontend — contexto de igreja, tema e fluxo
+
+`app.js` (boot):
+
+1. `supabase.auth.getSession()` → sem sessão, volta para `index.html`.
+2. Carrega o **perfil** (`profiles`) → `window.ME`.
+3. Carrega as **igrejas** do usuário (`church_members` + `churches`); para `system_admin`, todas.
+4. Define a **igreja ativa** (`localStorage['churchId']` ou a 1ª) e expõe `window.ACTIVE_CHURCH`,
+   `window.ACTIVE_CHURCH_ID`, `window.MY_CHURCHES`, `window.isAdmin()` (= `system_admin` **ou** admin da igreja ativa).
+5. Monta o **seletor de igreja** e o botão de **tema**; mostra os itens `.admin-only` se `isAdmin()`.
+6. `render()` = hash routing → a view da rota executa `render(el, arg)` (async).
+
+**Tema:** `ui.initTheme()` aplica `localStorage['theme']` em `data-theme`; `toggleTheme()` alterna.
+O CSS tem `:root` (escuro) + `:root[data-theme='light']` + fallback `@media (prefers-color-scheme: light)`.
+
+**Consulta principal do membro** (eventos futuros da igreja ativa que ainda não respondi):
 
 ```sql
-select es.*
-from public.event_status es
-where es.starts_at > now()
-  and not exists (
-    select 1 from public.event_members em
-    where em.event_id = es.id
-      and em.profile_id = auth.uid()
-      and em.status in ('confirmado', 'ausente')
-  )
-  and not exists (
-    select 1 from public.absences a
-    where a.profile_id = auth.uid()
-      and a.start_date <= es.starts_at::date
-      and a.end_date   >= es.starts_at::date
-  )
+select es.* from public.event_status es
+where es.church_id = '<igreja-ativa>' and es.starts_at > now()
+  and not exists (select 1 from public.event_members em
+                  where em.event_id = es.id and em.profile_id = auth.uid()
+                    and em.status in ('confirmado','ausente'))
 order by es.starts_at;
 ```
 
-Respostas do membro:
+Respostas: **Vou** → upsert `confirmado` + 1+ instrumentos em `event_member_instruments`
+(o app faz delete+insert das próprias linhas a cada resposta); **Não vou** → `ausente`.
 
-- **Vou** → upsert em `event_members` com `status = 'confirmado'` + **1 ou mais** instrumentos (checkboxes entre os que ele tem cadastrado — ex.: Teclado + Voz) gravados em `event_member_instruments`. O app faz delete + insert das próprias linhas a cada resposta (idempotente)
-- **Não vou** → `status = 'ausente'` (com atalho opcional "marcar licença", que cria linha em `absences`)
-- **Mudar de resposta** → novo upsert sobrescreve; a escolha de instrumentos é substituída
-
-## 9. Fluxo de autenticação (Google)
+## 10. Autenticação
 
 ```
-index.html  ──▶  supabase.auth.signInWithOAuth({
-                   provider: 'google',
-                   options: { redirectTo: ORIGIN + '/login-callback.html' }
-                 })
-                      │  (redireciona para o Google)
-login-callback.html ◀─┘
-  ──▶ supabase.auth.getSessionFromUrl()  →  cria a sessão (localStorage)
-  ──▶ window.location.replace('app.html#/meu-agenda')
-
-app.html ──▶ on load: supabase.auth.getSession()
-             sem sessão → volta para index.html
-             com sessão → carrega layout + view da rota atual
+index.html  ──▶ supabase.auth.signInWithOAuth({ provider:'google',
+                 options:{ redirectTo: ORIGIN + '/login-callback.html' } })
+login-callback.html ──▶ supabase.auth.getSession()   (PKCE troca o ?code= pela sessão)
+                    ──▶ location.replace('app.html#/meu-agenda')
 ```
+
+No **local** (Docker): `IS_LOCAL_ENV` mostra o formulário **e-mail/senha** (autoconfirm ligado)
+e esconde o Google. `signUp` envia `options.data.full_name` (o trigger lê `raw_user_meta_data`).
 
 Setup no Supabase (uma vez):
 
-1. **Authentication → Providers → Google** — ativar. (O Supabase provisiona as credenciais; se preferir usar seu próprio client do Google Cloud, o redirect `https://<ref>.supabase.co/auth/v1/callback` precisa estar autorizado no client OAuth.)
-2. **Authentication → URL Configuration** — Site URL e Redirect URLs com **todos** os domínios:
-   - `http://localhost:5500` (dev)
-   - `https://SEU-PROJETO.vercel.app`
-   - `https://DOMINIO-NO-HOSTINGER`
-3. **Primeiro admin**: você loga com Google (o trigger cria o perfil) e roda a query do §5.3.
+1. **Auth → Providers → Google** — ativar (ou usar seu próprio client OAuth do Google Cloud).
+2. **Auth → URL Configuration** — Site/Redirect URLs com todos os domínios
+   (`http://localhost:3000`, Vercel, Hostinger).
+3. **1º admin de sistema** — ver §5.4.
 
-## 10. Design responsivo (mobile-first)
+## 11. Design responsivo e temas
 
-- **Celular** (≤ 640px): 1 coluna; navegação em **bottom-nav** fixa (Meu, Agenda, Painel, Membros, Admin); botões de confirmação grandes (thumb-friendly)
-- **Tablet** (641–1024px): grid de 2 colunas nos cards; nav lateral recolhível
-- **Desktop** (> 1024px): **sidebar** fixa à esquerda + grid `repeat(auto-fill, minmax(300px, 1fr))`
-- **Tema**: custom properties (`--bg`, `--surface`, `--accent`, `--ok`, `--warn`, `--crit`) + dark mode por `prefers-color-scheme` e toggle manual
-- **Selo de status** nos cards (a UI deriva o motivo dos contadores da view): 🔴 **crítico** — "Sem voz" / "Sem base (Violão/Teclado)" · 🟡 **alerta** — "3/8 confirmados (metade ou menos)" · 🟢 **ok**
-- **Tipografia**: system font stack (zero download) ou 1 Google Font (Inter) com `font-display: swap`
-- **Calendário mensal** desenhado em JS (grade 7 colunas) — sem biblioteca externa
+- **Celular** (≤ ~760px): 1 coluna; **bottom-nav** fixa; título do topbar oculto; `church-pick` compacto.
+- **Desktop** (≥ 900px): **sidebar** fixa + grid `repeat(auto-fill, minmax(300px, 1fr))`.
+- **Formulários**: `.form-grid` (2 colunas) → **1 coluna** em telas ≤ 560px.
+- **Tema**: claro/escuro (botão 🌙/☀️ + `prefers-color-scheme`); flatpickr alinhado ao tema.
+- **Selo de status**: a UI deriva o motivo dos contadores da view (`statusReasons`).
+- **Calendário**: grade de 7 colunas desenhada em JS (sem biblioteca) + barra `.cal-nav` (‹ Mês › Hoje).
 
-## 11. Deploy (mesmo código nos dois)
+## 12. Deploy (mesmo código nos dois)
 
 O site é **100% estático** — nenhum backend próprio, nada de Node em produção.
 
-**Vercel**
+**Vercel** — importar o repo → framework *Other* → deploy → adicionar o domínio em Supabase → Redirect URLs.
 
-1. Subir o projeto para o GitHub (ou CLI: `npx vercel`)
-2. Importar na Vercel → framework: *Other* → deploy
-3. Adicionar o domínio em Supabase → Redirect URLs
+**Hostinger** — hPanel → Gerenciador de Arquivos/FTP → enviar o conteúdo de `web/` para
+`public_html/` → adicionar o domínio em Supabase → Redirect URLs. Hash routing dispensa
+rewrites/`.htaccess`.
 
-**Hostinger**
+**Chaves**: `web/js/config.js` (`CONFIG.supabaseUrl` + `CONFIG.anonKey`). A `anon key` **é
+pública por design** — a segurança é o RLS. **Nunca** use `service_role` no frontend.
 
-1. hPanel → **Gerenciador de Arquivos** (ou FTP) → enviar o conteúdo da pasta para `public_html/`
-2. (Em VPS: apontar o `root` do Nginx/Apache para a pasta do site)
-3. Adicionar o domínio em Supabase → Redirect URLs
-4. Nada a configurar de servidor: hash routing dispensa rewrites e `.htaccess`
+## 13. Evolução (v3, opcional)
 
-**Chaves** (nas duas): `js/config.js` com `SUPABASE_URL` e `SUPABASE_ANON_KEY`.
-A `anon key` **é pública por design** — a segurança é o RLS. Nunca usar `service_role` no frontend.
+- **Realtime**: dashboard atualiza ao vivo quando alguém confirma (canal em `event_members`).
+- **Notificações**: Edge Function + e-mail (Resend) e/ou atalho **WhatsApp** (`wa.me`).
+- **Convite de membro** por link/e-mail (hoje o admin adiciona integrantes já existentes).
+- **Ensaios recorrentes** (ex.: toda sexta) gerados automaticamente.
+- **Exportar ICS** (importar a agenda no Google Calendar).
+- **Alerta de desistência** de última hora (desconfirmação perto da data).
 
-## 12. Evolução (v2, opcional)
+## 14. Roadmap de construção
 
-- **Realtime**: dashboard atualiza ao vivo quando alguém confirma (Supabase Realtime em `event_members`)
-- **Notificações**: Edge Function + e-mail (Resend) — "Fulano confirmou o ensaio" e lembretes de pendência; atalho **WhatsApp** (`wa.me`) com mensagem de confirmação
-- **Ensaios recorrentes** (ex.: toda sexta) gerados automaticamente
-- **Exportar ICS** (importar a agenda no Google Calendar)
-- **Alerta de desistência de última hora**: desconfirmação perto da data → destaque no painel
-
-## 13. Roadmap de construção
-
-| # | Etapa | Entrega |
-|---|---|---|
-| 1 | Supabase: projeto + SQL (§5–7) + Google OAuth | banco pronto |
-| 2 | Login: index, callback, guard, layout base | entra com Google |
-| 3 | **Meu Agenda**: listar pendentes + Vou/Não vou + instrumento | fluxo principal funcionando |
-| 4 | **Dashboard**: cards críticos com motivos | visibilidade da banda |
-| 5 | Agenda mensal + detalhe do evento (quem vai, com que instrumento) | visão completa |
-| 6 | Membros + instrumentos + licenças | cadastro completo |
-| 7 | Admin: criar eventos, gerenciar membros e instrumentos | controle total |
-| 8 | Deploy: Vercel (teste) → Hostinger (produção) | no ar |
+| # | Etapa | Entrega | Status |
+|---|---|---|---|
+| 1 | Supabase: projeto + SQL + Google OAuth | banco pronto | ✅ |
+| 2 | Login: index, callback, guard, layout base | entra com Google | ✅ |
+| 3 | Meu Agenda: pendentes + Vou/Não vou + instrumentos | fluxo principal | ✅ |
+| 4 | Dashboard: cards críticos com motivos | visibilidade | ✅ |
+| 5 | Calendário + detalhe do evento | visão completa | ✅ |
+| 6 | Membros + instrumentos + licenças | cadastro | ✅ |
+| 7 | Admin: eventos, membros, instrumentos, papéis | controle | ✅ |
+| 8 | **v2**: multi-igreja + repertório + temas + flatpickr | multi-tenant | ✅ |
+| 9 | Deploy: Vercel (teste) → Hostinger (produção) | no ar | ⬜ |
