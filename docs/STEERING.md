@@ -49,8 +49,11 @@
 
 ## 6. Ambiente fixo (NUNCA redescobrir — espelho do § Pegadinhas do TASKS.md)
 
-- Docker roda em **WSL** (Ubuntu = distro default), **não** no Docker Desktop.
-- Do Windows: `.\dev-up.ps1` / `.\dev-down.ps1` / `.\dev-reset.ps1` (wrappers p/ WSL).
+- Docker: **Windows (Docker Desktop) agora funciona** (13/11) — caminho mais simples p/
+  `docker compose`, testes e `docker run` direto no PowerShell (a partir de `supabase-local/`).
+  O Docker no **WSL** (Ubuntu) continua disponível como alternativa/legado.
+- Do Windows: `.\dev-up.ps1` / `.\dev-down.ps1` / `.\dev-reset.ps1` (wrappers p/ WSL, por
+  compatibilidade); para usar o Docker do Windows, rode `docker compose ...` nativo.
 - URLs: app `:3000` · API/Studio `:8000` (login `supabase`/senha do `.env`) · PG `:5432`.
 - Usuários teste: `ana@teste.com` (admin) · `bruno|carla|diego|elisa|felipe|gabriela|henrique@teste.com` · senha `123456`.
 - `web/` = app canônico · `supabase-local/` = vendorizada (nossos: `.env`, `docker-compose.app.yml`, `volumes/web/`) · `supabase/schema.sql` + `seed.sql` = o "dump" que vai para a nuvem.

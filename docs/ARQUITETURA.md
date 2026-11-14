@@ -235,14 +235,21 @@ e **Catedral Comunhão**), 8 usuários de teste (senha `123456`), eventos, confi
 **repertório**. `ana@teste.com` é **admin de sistema**; `carla@` é admin da Catedral;
 `carla`/`diego`/`felipe` pertencem às **duas** igrejas (testam o seletor).
 
-### 5.4 Primeiro admin de sistema (rodar uma vez, no SQL Editor)
+### 5.4 Primeiro admin de sistema — allowlist (opção C)
+
+Quem tiver o e-mail na `public.system_admin_allowlist` vira **`system_admin` automaticamente**
+(no 1º login via `handle_new_user`, ou na hora em que o e-mail é inserido, via trigger). A tabela
+tem **RLS sem policies** (só `service_role`/superuser escreve). Os e-mails são configurados em
+`supabase/bootstrap.sql` (ex.: `worshiper777@gmail.com`, `victor.ufcg@gmail.com`).
 
 ```sql
-insert into public.churches (name) values ('Minha Igreja');
-update public.profiles set role = 'system_admin' where id = '<uuid-do-admin>';
-insert into public.church_members (church_id, profile_id, role)
-  select c.id, '<uuid-do-admin>', 'admin' from public.churches c where c.name = 'Minha Igreja';
+-- schema.sql cria a tabela; bootstrap.sql popula:
+insert into public.system_admin_allowlist (email) values ('worshiper777@gmail.com')
+  on conflict (email) do nothing;
 ```
+
+Depois, o `system_admin` cria igrejas e promove outros admins pelo app (`#/admin`).
+Fallback manual: `update public.profiles set role = 'system_admin' where id = '<uuid-do-admin>';`
 
 ## 6. Segurança — Row Level Security (multi-igreja)
 

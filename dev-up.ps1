@@ -1,4 +1,4 @@
-# Sobe o ambiente local completo (o Docker roda no WSL — Ubuntu)
+# Sobe o ambiente local completo. Docker: Windows (Desktop) OU WSL; este wrapper usa WSL.
 Set-StrictMode -Latest
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path -Parent $MyInvocation.MyCommand.Path)

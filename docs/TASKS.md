@@ -4,6 +4,10 @@
 > login `ana@teste.com`/`123456` → usar o **seletor de igreja** (Anglicana ⇄ Catedral) → alternar
 > **tema claro** → Admin: repertório, músicas e igrejas. Depois: **Fase 4** (Produção).
 >
+> **✅ ADMIN PRODUÇÃO (13/11):** bootstrap do 1º `system_admin` resolvido via **allowlist**
+> (`system_admin_allowlist` + `supabase/bootstrap.sql`; emails `worshiper777@gmail.com` e
+> `victor.ufcg@gmail.com`). Detalhes em **`docs/PLANO_ADMIN_PRODUCAO.md`**.
+>
 > **Retomada:** ler as 30 primeiras linhas daqui → seguir ▶ NEXT.
 > Protocolo de contexto: `docs/STEERING.md`. Contratos abaixo (API/UI) substituem reler fonte.
 
@@ -28,7 +32,7 @@
 - [x] Fase 3 — E2E no browser + polimento (responsivo + toast de erro de RLS)
 - [x] Fase 5 — **v2**: multi-igreja (`churches`/`church_members`/`system_admin`) + repertório + tema claro + flatpickr
 - [x] Fase 6 — **v2.1**: página de Repertório (`#/repertorio`, aberta a membros) + entrada/saída de igreja com aprovação + Status em cards + repertório editável no evento
-- [ ] Fase 4 — Produção (Vercel/Hostinger + Google OAuth) ← ATUAL
+- [~] Fase 4 — Produção (bootstrap 1º admin + Vercel/Hostinger + Google OAuth) ← ATUAL
 
 ## O que fazer AGORA (1 item = 1 arquivo/comando)
 
@@ -45,6 +49,13 @@
 - [x] 3.1 responsivo: bottomnav ≤900px / sidebar ≥900px · `.form-grid` 1 col ≤560px · nome oculto ≤480px
 - [x] 3.2 erros de RLS → toast amigável (`api.js fail` + `catch` no `mountAnswer.save`)
 - [x] 3.3 resultado do E2E anotado no log de progresso
+
+**Fase 4 — Produção** (plano: `docs/PLANO_ADMIN_PRODUCAO.md`)
+- [x] 4.1a decidir o modelo de bootstrap do 1º `system_admin` → **C (allowlist)**
+- [x] 4.1b implementar: `system_admin_allowlist` + `handle_new_user`/trigger + `supabase/bootstrap.sql`
+- [x] 4.1c emails definidos: `worshiper777@gmail.com`, `victor.ufcg@gmail.com`
+- [ ] 4.2 ativar Google OAuth + Redirect URLs no Supabase
+- [ ] 4.3 deploy estático (Vercel/Hostinger)
 
 ## Mapa dos arquivos (estado real)
 
@@ -132,7 +143,10 @@ Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
 
 ## Pegadinhas
 
-1. **Docker roda no WSL** (distro Ubuntu = default), NÃO no Docker Desktop do Windows.
+1. **Docker no Windows (Docker Desktop) agora funciona** (13/11) — rodar `docker compose`,
+   testes e `docker run` direto no PowerShell (a partir de `supabase-local/`) é o caminho mais
+   simples. O Docker no **WSL** (Ubuntu) continua como alternativa/legado.
+   - Windows nativo: `cd supabase-local; docker compose -f docker-compose.yml -f docker-compose.app.yml up -d`
    - Do Windows: `wsl -e bash /mnt/c/Users/antonio.vneto/devel/schedule/dev-up.sh` (ou `.\dev-up.ps1`)
    - Scripts `.sh`: cd p/ `$(dirname $0)/supabase-local` e `docker compose -f docker-compose.yml -f docker-compose.app.yml`
    - `.\dev-up.ps1` etc. são wrappers: `wslpath -u $PWD.Path` + `wsl -e bash "$wslPath\dev-*.sh"`
@@ -191,3 +205,5 @@ Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
 | 06/11 | **v2 multi-igreja + repertório** (backend validado por API): tabelas `churches`/`church_members`/`songs`/`event_songs`; `church_id` em events/songs; papel global `system_admin`; helper RLS `is_system_admin/is_member_of/is_admin_of/shares_church/admin_of_profile/event_church`; catálogo com 20 instrumentos (+Voz); `member_instruments` editável pelo próprio membro. Seed: 2 igrejas (Anglicana Libertador = dados atuais; Catedral Comunhão = nova), repertório, 5 eventos. Front: seletor de igreja, **tema claro**, **flatpickr** nos pickers, repertório por evento, instrumentos editáveis, fix do `.cal-nav`. ▶ NEXT: validar v2 no browser |
 | 06/11 | **v2.1**: página **Repertório** (`#/repertorio`: CRUD de músicas + associação por evento, **aberto a membros** — RLS `songs`/`event_songs` = `is_member_of`); **entrada/saída de igreja** com aprovação (`church_join_requests` + helper `can_view_profile`; `churches` visível a logados; `cm_self_delete`); **Status em cards** com "Ver evento"/repertório; **repertório editável na tela do evento**; Admin ganhou **Solicitações de entrada** e perdeu o CRUD de músicas. Validado por API (aprovar/sair/criar música). ▶ NEXT: testar v2.1 no browser |
 | 11/11 | **v2.2 (UX)**: `_shared.js` ganhou **picker** reutilizável (busca dinâmica + lista com **remover/reordenar**): usado em Repertório→por evento, Evento e Admin→membros (instrumentos deixaram de ser checkboxes). Biblioteca de músicas **paginada (10) + ordenação** (nome A–Z/Z–A/artista). Repertório do evento: posição editável (↑↓). **Compartilhar** em Status e Evento → texto WhatsApp (título, data/hora, confirmados + instrumentos, repertório) com modal (copiar/abrir). CSS: `.picker*`, `.pager`, `.modal`. ▶ NEXT: testar v2.2 no browser |
+| 12/11 | **Fase 4 — kickoff**: discutido o **bootstrap do 1º `system_admin` em produção** (sistema sobe sem usuário/igreja/admin). Hoje só há bootstrap **manual via SQL Editor** (README/ARQ §5.4); sem login de admin separado. Registrado plano + 5 opções (A manual · B Table Editor · C script idempotente · D 1º usuário vira admin · E console+Edge Function) e recomendação (A+B, com C de automação) em **`docs/PLANO_ADMIN_PRODUCAO.md`**. ⏸ **PAUSADO** — retomar pela decisão do modelo (4.1a) |
+| 13/11 | **Fase 4 — bootstrap admin (C) IMPLEMENTADO**: `system_admin_allowlist` (RLS sem policies) + `handle_new_user` já cria `system_admin` p/ email da allowlist + trigger `on_allowlist_admin_added` promove conta existente; `supabase/bootstrap.sql` (idempotente) com `worshiper777@gmail.com` e `victor.ufcg@gmail.com`. Docs: README §Deploy, ARQ §5.4, PLANO. ▶ NEXT: 4.2 Google OAuth + Redirect URLs |

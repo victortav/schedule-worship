@@ -146,15 +146,15 @@ O site é **100% estático** — nenhum backend próprio.
 - **Hostinger:** envie o conteúdo de `web/` para `public_html/`.
 - Em ambos: adicione o domínio em **Supabase → Authentication → URL Configuration → Redirect URLs**.
 
-**Setup no Supabase (uma vez):** ativar o provider **Google**, configurar Site/Redirect
-URLs e, no 1º login, criar a 1ª igreja + promover o **admin de sistema**:
+**Setup no Supabase (uma vez):**
+1. Rodar **`supabase/schema.sql`** (SQL Editor) — DDL idempotente.
+2. Rodar **`supabase/bootstrap.sql`** (SQL Editor) — popula a **allowlist** de admins de sistema.
+   Quem logar com um e-mail da allowlist (ex.: `worshiper777@gmail.com`, `victor.ufcg@gmail.com`)
+   já entra como **`system_admin`** e cria a 1ª igreja pelo app (`#/admin`).
+3. Ativar o provider **Google** e configurar Site/Redirect URLs.
 
-```sql
-insert into public.churches (name) values ('Minha Igreja');
-update public.profiles set role = 'system_admin' where id = '<uuid-do-admin>';
-insert into public.church_members (church_id, profile_id, role)
-  select c.id, '<uuid-do-admin>', 'admin' from public.churches c where c.name = 'Minha Igreja';
-```
+> Fallback manual (sem allowlist): após o 1º login, promover a conta pelo SQL Editor:
+> `update public.profiles set role = 'system_admin' where id = '<uuid-do-admin>';`
 
 ## 📈 Estado do projeto
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Sobe o ambiente local completo: Supabase + schema/seed + app web
-# ATENÇÃO: o Docker roda no WSL — execute por:
+# Docker: Windows (Desktop) ou WSL. No WSL, execute por:
 #   wsl -e bash /mnt/c/Users/antonio.vneto/devel/schedule/dev-up.sh
+# No Windows, rode direto em supabase-local/: docker compose ... up -d
 set -euo pipefail
 cd "$(dirname "$0")/supabase-local"
 
