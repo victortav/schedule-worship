@@ -134,15 +134,31 @@ create table if not exists public.church_join_requests (
   primary key (church_id, profile_id)
 );
 
+-- Allowlist de administradores de SISTEMA (bootstrap de produção).
+-- Emails aqui cadastrados viram `profiles.role='system_admin'` automaticamente:
+--   • no 1º login (handle_new_user), e
+--   • ao inserir o email aqui, se o usuário já existir (promote_allowlisted_admin).
+-- Sem políticas de RLS → nenhum acesso via anon/authenticated (só service_role/superuser).
+create table if not exists public.system_admin_allowlist (
+  email      text primary key check (email = lower(email)),
+  created_at timestamptz not null default now()
+);
+
 -- ---------------------------------------------------------------------
 -- 2) TRIGGER: perfil criado sozinho no primeiro login
 -- ---------------------------------------------------------------------
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, full_name, avatar_url)
-  values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', new.email),
-          new.raw_user_meta_data ->> 'avatar_url')
+  insert into public.profiles (id, full_name, avatar_url, role)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data ->> 'full_name', new.email),
+    new.raw_user_meta_data ->> 'avatar_url',
+    case when exists (
+      select 1 from public.system_admin_allowlist a where a.email = lower(new.email)
+    ) then 'system_admin' else 'membro' end
+  )
   on conflict (id) do nothing;
   return new;
 end; $$;
@@ -151,6 +167,24 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Ao adicionar um email na allowlist, promove o usuário já cadastrado (se existir).
+create or replace function public.promote_allowlisted_admin()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  update public.profiles p
+     set role = 'system_admin'
+    from auth.users u
+   where u.id = p.id
+     and lower(u.email) = new.email
+     and p.role <> 'system_admin';
+  return new;
+end; $$;
+
+drop trigger if exists on_allowlist_admin_added on public.system_admin_allowlist;
+create trigger on_allowlist_admin_added
+  after insert on public.system_admin_allowlist
+  for each row execute function public.promote_allowlisted_admin();
 
 -- ---------------------------------------------------------------------
 -- 3) SEED: instrumentos (id fixo p/ referências determinísticas)
@@ -284,6 +318,8 @@ alter table public.absences             enable row level security;
 alter table public.songs                enable row level security;
 alter table public.event_songs          enable row level security;
 alter table public.church_join_requests enable row level security;
+alter table public.system_admin_allowlist enable row level security;
+-- (sem policies de propósito: a allowlist só é acessível por service_role/superuser)
 
 -- churches: qualquer logado lê a lista (para poder PEDIR entrada); system_admin cria/edita
 drop policy if exists "churches_select" on public.churches;
