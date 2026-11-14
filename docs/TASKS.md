@@ -143,10 +143,11 @@ Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
 
 ## Pegadinhas
 
-1. **Docker no Windows (Docker Desktop) agora funciona** (13/11) — rodar `docker compose`,
-   testes e `docker run` direto no PowerShell (a partir de `supabase-local/`) é o caminho mais
-   simples. O Docker no **WSL** (Ubuntu) continua como alternativa/legado.
-   - Windows nativo: `cd supabase-local; docker compose -f docker-compose.yml -f docker-compose.app.yml up -d`
+1. **Docker:** com o **Docker Desktop (Windows)** ativo, use `docker compose` nativo (a partir de
+   `supabase-local/`). **Verificado 13/11:** o CLI nativo do PowerShell não alcançou o engine
+   (`npipe dockerDesktopLinuxEngine` ausente), mas o `docker` no **WSL** respondeu (unix socket)
+   — Docker Desktop não estava expondo o pipe. **Fallback: WSL.**
+   - Windows nativo (Desktop ativo): `cd supabase-local; docker compose -f docker-compose.yml -f docker-compose.app.yml up -d`
    - Do Windows: `wsl -e bash /mnt/c/Users/antonio.vneto/devel/schedule/dev-up.sh` (ou `.\dev-up.ps1`)
    - Scripts `.sh`: cd p/ `$(dirname $0)/supabase-local` e `docker compose -f docker-compose.yml -f docker-compose.app.yml`
    - `.\dev-up.ps1` etc. são wrappers: `wslpath -u $PWD.Path` + `wsl -e bash "$wslPath\dev-*.sh"`
