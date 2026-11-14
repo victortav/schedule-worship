@@ -49,13 +49,11 @@
 
 ## 6. Ambiente fixo (NUNCA redescobrir — espelho do § Pegadinhas do TASKS.md)
 
-- Docker: quando o **Docker Desktop (Windows)** estiver ativo, use `docker compose ...` nativo
-  a partir de `supabase-local/` (mais simples p/ testes e `docker run`). **Verificado 13/11:**
-  neste host o CLI nativo do PowerShell NÃO alcançou o engine (`npipe dockerDesktopLinuxEngine`
-  ausente), mas o `docker` **dentro do WSL** respondeu (unix socket) — Docker Desktop não estava
-  expondo o pipe. **Fallback seguro: WSL.**
-- Do Windows: `.\dev-up.ps1` / `.\dev-down.ps1` / `.\dev-reset.ps1` (wrappers p/ WSL, por
-  compatibilidade).
+- **Docker nativo (sem WSL):** Windows usa `./dev-up.ps1` / `./dev-down.ps1` / `./dev-reset.ps1`
+  (PowerShell); Linux/macOS usa `./dev-up.sh` / `./dev-down.sh` / `./dev-reset.sh`. Ambos chamam
+  `docker compose ... up -d|down` em `supabase-local/`.
+- Requer Docker Desktop ativo (Windows) ou Docker Engine (Linux). Se o `docker` do PowerShell não
+  conectar, verifique se o Docker Desktop está rodando.
 - URLs: app `:3000` · API/Studio `:8000` (login `supabase`/senha do `.env`) · PG `:5432`.
 - Usuários teste: `ana@teste.com` (admin) · `bruno|carla|diego|elisa|felipe|gabriela|henrique@teste.com` · senha `123456`.
 - `web/` = app canônico · `supabase-local/` = vendorizada (nossos: `.env`, `docker-compose.app.yml`, `volumes/web/`) · `supabase/schema.sql` + `seed.sql` = o "dump" que vai para a nuvem.

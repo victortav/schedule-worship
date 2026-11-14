@@ -51,20 +51,27 @@ schedule-worship/
 
 ## 🚀 Rodar localmente
 
-**Pré-requisito:** Docker rodando no **WSL (Ubuntu)** — *não* use o Docker Desktop.
+**Pré-requisito:** **Docker** instalado — Docker Desktop (Windows) ou Docker Engine (Linux).
+Não é necessário WSL: os scripts usam o Docker nativo do sistema.
 
 **1) (1ª vez) criar o `.env`:**
 
+```powershell
+Copy-Item supabase-local\.env.example supabase-local\.env   # Windows
+```
+
 ```bash
-cp supabase-local/.env.example supabase-local/.env
+cp supabase-local/.env.example supabase-local/.env          # Linux/macOS
 ```
 
 **2) Subir tudo:**
 
 ```powershell
-.\dev-up.ps1            # no Windows (faz o wrapper p/ WSL)
-# ou direto no WSL:
-wsl -e bash /mnt/c/Users/<seu-usuario>/devel/schedule/dev-up.sh
+.\dev-up.ps1            # Windows (PowerShell) — Docker nativo
+```
+
+```bash
+./dev-up.sh             # Linux/macOS — Docker nativo
 ```
 
 Aguarde ~30s até `supabase-db` e `supabase-auth` ficarem `healthy`.
@@ -85,8 +92,9 @@ Dados de exemplo: igrejas **Anglicana Libertador** (todos) e **Catedral Comunhã
 **Parar / resetar:**
 
 ```powershell
-.\dev-down.ps1     # para os containers (mantém os dados)
-.\dev-reset.ps1    # apaga tudo (banco + storage) e recomeça do zero
+.\dev-down.ps1     # Windows: para os containers (mantém os dados)
+.\dev-reset.ps1    # Windows: apaga tudo (banco + storage) e recomeça do zero
+# Linux/macOS: ./dev-down.sh  ·  ./dev-reset.sh
 ```
 
 ### O que o `dev-up` faz
@@ -96,7 +104,7 @@ Dados de exemplo: igrejas **Anglicana Libertador** (todos) e **Catedral Comunhã
 3. O serviço **`web`** (nginx) serve a pasta `web/` na porta `3000`.
 
 > **Dicas:** editou arquivos em `web/`? Já refletem (bind mount) — dê *hard refresh*.
-> Alterou `supabase/seed.sql`? Reaplique: `wsl -e bash -c "docker start schedule-migrate"`.
+> Alterou `supabase/seed.sql`? Reaplique: `docker start schedule-migrate`.
 > **Mudou o `schema.sql`** (ex.: veio da v1)? Faça **reset**: `.\dev-reset.ps1` + `.\dev-up.ps1`.
 
 ## 🗄 Banco de dados

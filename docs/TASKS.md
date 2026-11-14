@@ -143,16 +143,12 @@ Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
 
 ## Pegadinhas
 
-1. **Docker:** com o **Docker Desktop (Windows)** ativo, use `docker compose` nativo (a partir de
-   `supabase-local/`). **Verificado 13/11:** o CLI nativo do PowerShell não alcançou o engine
-   (`npipe dockerDesktopLinuxEngine` ausente), mas o `docker` no **WSL** respondeu (unix socket)
-   — Docker Desktop não estava expondo o pipe. **Fallback: WSL.**
-   - Windows nativo (Desktop ativo): `cd supabase-local; docker compose -f docker-compose.yml -f docker-compose.app.yml up -d`
-   - Do Windows: `wsl -e bash /mnt/c/Users/antonio.vneto/devel/schedule/dev-up.sh` (ou `.\dev-up.ps1`)
-   - Scripts `.sh`: cd p/ `$(dirname $0)/supabase-local` e `docker compose -f docker-compose.yml -f docker-compose.app.yml`
-   - `.\dev-up.ps1` etc. são wrappers: `wslpath -u $PWD.Path` + `wsl -e bash "$wslPath\dev-*.sh"`
-   - `.sh` precisam estar com **LF** (não CRLF) — normalizar: `sed -i 's/\r$//' dev-*.sh`
-   - saída de `wsl` não vem pelo terminal (shell integration) → **redirecionar p/ arquivo e `read_files`**
+1. **Docker nativo (sem WSL):** os scripts chamam `docker compose` direto.
+   - Windows (PowerShell): `./dev-up.ps1` / `./dev-down.ps1` / `./dev-reset.ps1`
+   - Linux/macOS: `./dev-up.sh` / `./dev-down.sh` / `./dev-reset.sh`
+   - Ambos, em `supabase-local/`: `docker compose -f docker-compose.yml -f docker-compose.app.yml up -d|down`
+   - Requer Docker Desktop ativo (Windows) ou Docker Engine (Linux); se o `docker` do PowerShell não conectar, confira se o Desktop está rodando.
+   - `.sh` precisam de **LF** — `.gitattributes` já força `*.sh eol=lf`
 2. `migrate` conecta como **`supabase_admin`** (superuser) — no stack novo `postgres` NÃO é superuser
    (trigger em `auth.users` + grants exigem). OS user no container continua `postgres` (só PGUSER mudou).
 3. `web/js/config.js` exporta `CONFIG` + `IS_LOCAL_ENV`; PROD com TODOs p/ Fase 4
