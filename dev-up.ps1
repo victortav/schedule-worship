@@ -23,6 +23,6 @@ finally { Pop-Location }
   API:            http://localhost:8000
 
   Usuarios de teste (senha: 123456):
-    ana@teste.com (admin) · bruno@teste.com · carla@teste.com · diego@teste.com
-    elisa@teste.com · felipe@teste.com · gabriela@teste.com · henrique@teste.com
+    ana@teste.com (admin) | bruno@teste.com | carla@teste.com | diego@teste.com
+    elisa@teste.com | felipe@teste.com | gabriela@teste.com | henrique@teste.com
 "@ | Write-Host
