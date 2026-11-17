@@ -57,9 +57,9 @@
 - [x] 4.2a `web/js/config.js` → prod `https://rouevilgawojkbpunhse.supabase.co` + publishable key
 - [x] 4.2b corrigir OAuth: usar `signInWithOAuth` (não existia `getUrlForOAuth` no supabase-js)
 - [x] 4.2c Google provider habilitado no projeto (verificado `external.google=true`)
-- [ ] 4.2d Redirect URLs no Supabase (`https://<dominio>/login-callback.html`) — falta o domínio
+- [x] 4.2d domínio `https://schedule-worship-web-elvu.vercel.app` (authorize → 302 Google com `redirect_to` OK)
+- [x] 4.3 deploy Vercel: `https://schedule-worship-web-elvu.vercel.app` (config de prod servido, verificado)
 - [ ] 4.4 aplicar `supabase/schema.sql` + `supabase/bootstrap.sql` no cloud (verificado 13/11: tabelas 404)
-- [ ] 4.3 deploy estático (Vercel/Hostinger)
 
 ## Mapa dos arquivos (estado real)
 
@@ -209,3 +209,4 @@ Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
 | 11/11 | **v2.2 (UX)**: `_shared.js` ganhou **picker** reutilizável (busca dinâmica + lista com **remover/reordenar**): usado em Repertório→por evento, Evento e Admin→membros (instrumentos deixaram de ser checkboxes). Biblioteca de músicas **paginada (10) + ordenação** (nome A–Z/Z–A/artista). Repertório do evento: posição editável (↑↓). **Compartilhar** em Status e Evento → texto WhatsApp (título, data/hora, confirmados + instrumentos, repertório) com modal (copiar/abrir). CSS: `.picker*`, `.pager`, `.modal`. ▶ NEXT: testar v2.2 no browser |
 | 12/11 | **Fase 4 — kickoff**: discutido o **bootstrap do 1º `system_admin` em produção** (sistema sobe sem usuário/igreja/admin). Hoje só há bootstrap **manual via SQL Editor** (README/ARQ §5.4); sem login de admin separado. Registrado plano + 5 opções (A manual · B Table Editor · C script idempotente · D 1º usuário vira admin · E console+Edge Function) e recomendação (A+B, com C de automação) em **`docs/PLANO_ADMIN_PRODUCAO.md`**. ⏸ **PAUSADO** — retomar pela decisão do modelo (4.1a) |
 | 13/11 | **Fase 4 — bootstrap admin (C) IMPLEMENTADO**: `system_admin_allowlist` (RLS sem policies) + `handle_new_user` já cria `system_admin` p/ email da allowlist + trigger `on_allowlist_admin_added` promove conta existente; `supabase/bootstrap.sql` (idempotente) com `worshiper777@gmail.com` e `victor.ufcg@gmail.com`. Docs: README §Deploy, ARQ §5.4, PLANO. ▶ NEXT: 4.2 Google OAuth + Redirect URLs |
+| 13/11 | **Deploy Vercel no ar**: `https://schedule-worship-web-elvu.vercel.app` (push `origin/main`; `/js/config.js` servido com URL de prod). OAuth `authorize` → **302 Google** com `redirect_to` do domínio. **Falta só**: aplicar `schema.sql` + `bootstrap.sql` no cloud (tabelas ainda 404) e testar login E2E |
