@@ -64,8 +64,9 @@ e-mail presente na allowlist vira **`system_admin` automaticamente**.
     estiver na allowlist (1º login).
   - trigger `on_allowlist_admin_added` + função `promote_allowlisted_admin()`: ao inserir
     um e-mail na allowlist, promove o usuário **já existente** (join com `auth.users`).
-- `supabase/bootstrap.sql` (novo, idempotente): insere os e-mails da allowlist e faz um
-  `update` de segurança promovendo contas já existentes.
+- `supabase/bootstrap.sql` (novo, idempotente): insere os e-mails da allowlist; faz **backfill**
+  de `profiles` para quem logou antes do schema existir (trigger ainda não rodava) e um `update`
+  promovendo as contas já existentes.
 
 **Emails configurados:**
 - `worshiper777@gmail.com`
