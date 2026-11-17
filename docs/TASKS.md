@@ -1,8 +1,8 @@
 # 📋 Tarefas — Agenda de Ensaios (SOT)
 
-> **▶ NEXT — validar a v2 (multi-igreja) no browser:** `.\\dev-up.ps1` → http://localhost:3000 →
-> login `ana@teste.com`/`123456` → usar o **seletor de igreja** (Anglicana ⇄ Catedral) → alternar
-> **tema claro** → Admin: repertório, músicas e igrejas. Depois: **Fase 4** (Produção).
+> **▶ NEXT — subir o banco em PRODUÇÃO:** no **Supabase SQL Editor**, rodar `supabase/schema.sql`
+> e depois `supabase/bootstrap.sql`. Verificado 13/11: tabelas ainda **404** no cloud. Depois:
+> 4.2d Redirect URLs com o domínio + 4.3 deploy estático.
 >
 > **✅ ADMIN PRODUÇÃO (13/11):** bootstrap do 1º `system_admin` resolvido via **allowlist**
 > (`system_admin_allowlist` + `supabase/bootstrap.sql`; emails `worshiper777@gmail.com` e
@@ -54,7 +54,11 @@
 - [x] 4.1a decidir o modelo de bootstrap do 1º `system_admin` → **C (allowlist)**
 - [x] 4.1b implementar: `system_admin_allowlist` + `handle_new_user`/trigger + `supabase/bootstrap.sql`
 - [x] 4.1c emails definidos: `worshiper777@gmail.com`, `victor.ufcg@gmail.com`
-- [ ] 4.2 ativar Google OAuth + Redirect URLs no Supabase
+- [x] 4.2a `web/js/config.js` → prod `https://rouevilgawojkbpunhse.supabase.co` + publishable key
+- [x] 4.2b corrigir OAuth: usar `signInWithOAuth` (não existia `getUrlForOAuth` no supabase-js)
+- [x] 4.2c Google provider habilitado no projeto (verificado `external.google=true`)
+- [ ] 4.2d Redirect URLs no Supabase (`https://<dominio>/login-callback.html`) — falta o domínio
+- [ ] 4.4 aplicar `supabase/schema.sql` + `supabase/bootstrap.sql` no cloud (verificado 13/11: tabelas 404)
 - [ ] 4.3 deploy estático (Vercel/Hostinger)
 
 ## Mapa dos arquivos (estado real)
@@ -137,7 +141,7 @@ Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
 - CSS: `.card(.clickable .row .grow)` `.chip(.inst)` `.badge .b-critico .b-alerta .b-ok .b-pend` `.avatar` `.btn(.primary .danger .ghost .small)` `label.field>span` `.form-grid(.full) .form-actions` `.inst-picks label(input checkbox)` `.list-row(.grow)` `.empty(.big)` `.loading` `.toast(.erro)` `.cal-nav(.cal-month) .cal-head .cal-grid(.dow .cal-cell(.other .today .dn) .cal-ev .e-critico .e-alerta .e-ok)` `.church-pick` · **temas**: `:root` (escuro) + `:root[data-theme='light']` + fallback `@media (prefers-color-scheme: light) :root:not([data-theme])` · flatpickr alinhado ao tema
 - **app.html**: `#boot.loading` → `#topbar.topbar` (logo+title+`#church-pick`+`#user-chip`+`#theme-toggle`) → `#shell.app` (`#sidebar.sidebar` `a[data-route]`, `.admin-only` + `#view.content`) → `#bottomnav` → **flatpickr** (2 `<script>` CDN: core + l10n/pt) → `/js/app.js`
 - **app.js**: `boot()` = sessão → perfil → **igrejas**; expõe `window.ME`, `window.MY_CHURCHES`, `window.ACTIVE_CHURCH`, `window.ACTIVE_CHURCH_ID`, `window.isAdmin()` (= `system_admin` OU admin da igreja ativa). Seletor de igreja persiste em `localStorage['churchId']`; tema em `localStorage['theme']`. Rotas `#/nome` e `#/evento/:id`; views exportam `{ render(el, arg) }` async
-- **login.js**: `index.html` carrega `/js/login.js`; ids `#google-area #btn-google #email-area #form-login #li-email #li-pass #btn-login #btn-signup #li-msg`; local = `IS_LOCAL_ENV`; Google via `googleOAuthUrl()`
+- **login.js**: `index.html` carrega `/js/login.js`; ids `#google-area #btn-google #email-area #form-login #li-email #li-pass #btn-login #btn-signup #li-msg`; local = `IS_LOCAL_ENV`; Google via `signInWithGoogle()`
 - **Admin** (`views/admin.js`): eventos (com **flatpickr**), repertório da igreja (CRUD de músicas), repertório por evento, membros (papel na igreja, instrumentos, ativar, remover, adicionar) e **igrejas** (só `system_admin`)
 - **RLS**: membro edita **os próprios** `member_instruments`/`event_members`/`event_member_instruments`/`absences`; **qualquer membro** escreve `songs`/`event_songs`; `events`/`church_members`/`churches` = escrita de **admin**; entrada/saída de igreja via `church_join_requests` (aprovação do admin); leitura escopada pela(s) igreja(s); tudo por `church_id`
 
@@ -200,6 +204,7 @@ Erros → `toast(msg,'erro')` + `throw` (mensagem RLS vira "Sem permissão…").
 | 06/11 | E2E **por API** OK (item 1.9): login `ana@teste.com`/`123456` voltou a funcionar após 2 fixes no `seed.sql` — `instance_id = uuid_nil` + 4 colunas de token `NULL`→`''` (GoTrue v2.197). Validações: web `200`, migrate `MIGRATION OK`, anon→`401`, `event_status` = 1🔴 (Ensaio da semana) / 1🟡 (Ensaio geral) / 1🟢 (Show), `ana`=admin, membro criando evento → `403` (RLS). ▶ NEXT 1.9f: confirmar o visual no browser |
 | 06/11 | Fase 3 concluída: usuário validou o E2E no navegador (1.9f). Polimento aplicado: `.form-grid` → 1 coluna ≤560px; toast sobe no desktop (≥900px); nome do usuário oculto ≤480px; `catch` no `mountAnswer.save` (erros de RLS já viram toast em `api.js fail`). Assets servindo `200`. ▶ NEXT: Fase 4 (Produção) |
 | 06/11 | **v2 multi-igreja + repertório** (backend validado por API): tabelas `churches`/`church_members`/`songs`/`event_songs`; `church_id` em events/songs; papel global `system_admin`; helper RLS `is_system_admin/is_member_of/is_admin_of/shares_church/admin_of_profile/event_church`; catálogo com 20 instrumentos (+Voz); `member_instruments` editável pelo próprio membro. Seed: 2 igrejas (Anglicana Libertador = dados atuais; Catedral Comunhão = nova), repertório, 5 eventos. Front: seletor de igreja, **tema claro**, **flatpickr** nos pickers, repertório por evento, instrumentos editáveis, fix do `.cal-nav`. ▶ NEXT: validar v2 no browser |
+| 13/11 | **Prod**: `config.js` preenchido (`rouevilgawojkbpunhse.supabase.co` + publishable key). Verificado por HTTP: auth `/settings` 200, `external.google=true`; porém `rest/v1/churches` e `system_admin_allowlist` = **404** → schema ainda NÃO aplicado no cloud. Corrigido bug latente do OAuth: `getUrlForOAuth` não existe → trocado por `signInWithOAuth` (`client.js`/`login.js`). ▶ NEXT: rodar schema.sql + bootstrap.sql no Supabase |
 | 06/11 | **v2.1**: página **Repertório** (`#/repertorio`: CRUD de músicas + associação por evento, **aberto a membros** — RLS `songs`/`event_songs` = `is_member_of`); **entrada/saída de igreja** com aprovação (`church_join_requests` + helper `can_view_profile`; `churches` visível a logados; `cm_self_delete`); **Status em cards** com "Ver evento"/repertório; **repertório editável na tela do evento**; Admin ganhou **Solicitações de entrada** e perdeu o CRUD de músicas. Validado por API (aprovar/sair/criar música). ▶ NEXT: testar v2.1 no browser |
 | 11/11 | **v2.2 (UX)**: `_shared.js` ganhou **picker** reutilizável (busca dinâmica + lista com **remover/reordenar**): usado em Repertório→por evento, Evento e Admin→membros (instrumentos deixaram de ser checkboxes). Biblioteca de músicas **paginada (10) + ordenação** (nome A–Z/Z–A/artista). Repertório do evento: posição editável (↑↓). **Compartilhar** em Status e Evento → texto WhatsApp (título, data/hora, confirmados + instrumentos, repertório) com modal (copiar/abrir). CSS: `.picker*`, `.pager`, `.modal`. ▶ NEXT: testar v2.2 no browser |
 | 12/11 | **Fase 4 — kickoff**: discutido o **bootstrap do 1º `system_admin` em produção** (sistema sobe sem usuário/igreja/admin). Hoje só há bootstrap **manual via SQL Editor** (README/ARQ §5.4); sem login de admin separado. Registrado plano + 5 opções (A manual · B Table Editor · C script idempotente · D 1º usuário vira admin · E console+Edge Function) e recomendação (A+B, com C de automação) em **`docs/PLANO_ADMIN_PRODUCAO.md`**. ⏸ **PAUSADO** — retomar pela decisão do modelo (4.1a) |

@@ -1,7 +1,7 @@
 // =====================================================================
 // Login (index.html) — Google em produção, e-mail/senha no local (mock)
 // =====================================================================
-import { supabase, googleOAuthUrl } from '/js/client.js';
+import { supabase, signInWithGoogle } from '/js/client.js';
 import { IS_LOCAL_ENV } from '/js/config.js';
 
 const $ = (s) => document.querySelector(s);
@@ -18,8 +18,12 @@ if (IS_LOCAL_ENV) {
   $('#btn-google').style.display = 'none';
 }
 
-$('#btn-google').addEventListener('click', () => {
-  location.href = googleOAuthUrl();
+$('#btn-google').addEventListener('click', async () => {
+  try {
+    await signInWithGoogle();
+  } catch (e) {
+    say(e.message || String(e));
+  }
 });
 
 $('#form-login').addEventListener('submit', (e) => e.preventDefault());

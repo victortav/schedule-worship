@@ -11,8 +11,12 @@ export const supabase = createClient(CONFIG.supabaseUrl, CONFIG.anonKey, {
   },
 });
 
-// URL do botão "Entrar com Google"
-export function googleOAuthUrl() {
-  const redirect = `${location.origin}/login-callback.html`;
-  return supabase.auth.getUrlForOAuth('google', { redirectTo: redirect });
+// Inicia o login com Google (o supabase-js faz o redirect sozinho).
+export async function signInWithGoogle() {
+  const redirectTo = `${location.origin}/login-callback.html`;
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo },
+  });
+  if (error) throw error;
 }

@@ -64,7 +64,7 @@ schedule-worship/
 │  ├─ css/styles.css          # design system: temas, grid, cards, .church-pick, .cal-nav
 │  └─ js/
 │     ├─ config.js            # CONFIG (URL + anon key) + IS_LOCAL_ENV
-│     ├─ client.js            # createClient (esm.sh), sessão, googleOAuthUrl()
+│     ├─ client.js            # createClient (esm.sh), sessão, signInWithGoogle()
 │     ├─ ui.js                # helpers DOM/datas/toasts + tema (initTheme/toggleTheme)
 │     ├─ api.js               # 1 função por consulta (escopo por igreja, songs, churches)
 │     ├─ login.js             # tela de login

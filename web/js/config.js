@@ -14,8 +14,9 @@ const LOCAL = {
 };
 
 const PROD = {
-  supabaseUrl: 'https://SEU-PROJETO.supabase.co', // TODO: trocar
-  anonKey: 'SUA-ANON-KEY-PUBLICA', // TODO: trocar (Supabase → API → anon key)
+  supabaseUrl: 'https://rouevilgawojkbpunhse.supabase.co',
+  // Publishable key (sb_publishable_...) — pública por design, a segurança é o RLS
+  anonKey: 'sb_publishable_Iz6ttyqliCZOW8yXguc91Q_vyCvS4-a',
 };
 
 export const CONFIG = IS_LOCAL ? LOCAL : PROD;
