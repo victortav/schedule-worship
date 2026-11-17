@@ -107,13 +107,19 @@ async function boot() {
   CHURCHES = await loadChurches();
   window.MY_CHURCHES = CHURCHES;
 
-  if (!CHURCHES.length) {
+  const noChurch = !CHURCHES.length;
+  if (noChurch && ME.role !== 'system_admin') {
     $('#boot').innerHTML = `<div class="empty big" style="display:block"><div class="big">⛪</div>
       <p>Você ainda não está vinculado a nenhuma igreja.<br>Peça ao administrador para te adicionar.</p></div>`;
     return;
   }
-  const saved = localStorage.getItem('churchId');
-  setActive(CHURCHES.find((c) => c.id === saved) || CHURCHES[0]);
+  // system_admin sem igrejas: entra para criar a 1ª (Admin trata a ausência de igreja ativa)
+  if (noChurch) {
+    setActive(null);
+  } else {
+    const saved = localStorage.getItem('churchId');
+    setActive(CHURCHES.find((c) => c.id === saved) || CHURCHES[0]);
+  }
 
   $('#boot').style.display = 'none';
   $('#topbar').style.display = '';
@@ -148,6 +154,7 @@ async function boot() {
 
   updateAdminNav();
   window.addEventListener('hashchange', render);
+  if (noChurch) location.hash = '#/admin';
   render();
 }
 

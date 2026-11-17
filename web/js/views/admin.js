@@ -21,6 +21,35 @@ export const Admin = {
     }
     const churchId = window.ACTIVE_CHURCH_ID;
     const isSys = ME.role === 'system_admin';
+
+    // system_admin sem igreja ativa (1º acesso): cria a primeira igreja
+    if (!churchId) {
+      el.innerHTML = `
+        <h1>Administração</h1>
+        <h2>⛪ Criar a primeira igreja</h2>
+        <div class="card">
+          <p class="muted">Você é admin de sistema e ainda não há igrejas cadastradas. Crie a primeira para começar.</p>
+          <div class="form-grid">
+            <label class="field full"><span>Nome da igreja</span><input id="ch-name" placeholder="Minha Igreja"></label>
+          </div>
+          <div class="form-actions"><button class="btn primary" id="ch-add">Criar igreja</button></div>
+        </div>`;
+      const btn = $('#ch-add', el);
+      btn.onclick = async () => {
+        const name = $('#ch-name', el).value.trim();
+        if (!name) return toast('Informe o nome da igreja.', 'erro');
+        btn.disabled = true;
+        try {
+          await adminCreateChurch(name);
+          toast('Igreja criada');
+          location.reload();
+        } catch {
+          btn.disabled = false; // toast de erro já sai em api.js
+        }
+      };
+      return;
+    }
+
     const [events, status, members, instruments, profiles, requests, allChurches] =
       await Promise.all([
         fetchUpcomingEvents(churchId),
