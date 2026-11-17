@@ -91,6 +91,27 @@ function setThemeIcon() {
   $('#theme-toggle').textContent = light ? '☀️' : '🌙';
 }
 
+// Estado "sem igreja atribuída" — usado no boot e no guard de rotas.
+function noChurchHTML() {
+  const adminBtn = window.isAdmin()
+    ? '<div class="form-actions"><a class="btn primary" href="#/admin">⛪ Criar/administrar igreja</a></div>'
+    : '';
+  return `<div class="empty big" style="display:block">
+    <div class="big">⛪</div>
+    <p>Você ainda não está vinculado a nenhuma igreja.<br>Peça ao administrador para te adicionar.</p>
+    ${adminBtn}
+    <div class="form-actions"><button class="btn ghost" id="btn-logout-nc" type="button">Sair</button></div>
+  </div>`;
+}
+
+function wireNoChurchActions(scope) {
+  const b = scope.querySelector('#btn-logout-nc');
+  if (b) b.onclick = async () => {
+    await supabase.auth.signOut();
+    location.replace('/index.html');
+  };
+}
+
 async function boot() {
   initTheme();
   const { data: sess } = await supabase.auth.getSession();
@@ -109,8 +130,8 @@ async function boot() {
 
   const noChurch = !CHURCHES.length;
   if (noChurch && ME.role !== 'system_admin') {
-    $('#boot').innerHTML = `<div class="empty big" style="display:block"><div class="big">⛪</div>
-      <p>Você ainda não está vinculado a nenhuma igreja.<br>Peça ao administrador para te adicionar.</p></div>`;
+    $('#boot').innerHTML = noChurchHTML();
+    wireNoChurchActions($('#boot'));
     return;
   }
   // system_admin sem igrejas: entra para criar a 1ª (Admin trata a ausência de igreja ativa)
@@ -168,6 +189,12 @@ function render() {
   );
 
   const el = $('#view');
+  // Guard: sem igreja ativa, exceto Admin (que cria a 1ª), mostra estado amigável (não erro).
+  if (!window.ACTIVE_CHURCH_ID && name !== 'admin') {
+    el.innerHTML = noChurchHTML();
+    wireNoChurchActions(el);
+    return;
+  }
   el.innerHTML = '<div class="loading">⏳</div>';
   routes[name].render(el, arg).catch((e) => {
     console.error(e);
