@@ -17,10 +17,8 @@
     try {
       const { data, error } = await supabase.auth.getSession();
       if (error || !data.session) throw new Error(error?.message || 'Sem sessão após o redirect.');
-      const url = new URL(location.href);
-      url.search = '';
-      url.hash = '#/meu-agenda';
-      location.replace(url.toString().replace(location.origin, '') || '/app.html');
+      // Troca o code (PKCE) pela sessão e vai para o app.
+      location.replace('/app.html#/meu-agenda');
     } catch (e) {
       const el = document.getElementById('msg');
       el.textContent = '❌ ' + e.message;
