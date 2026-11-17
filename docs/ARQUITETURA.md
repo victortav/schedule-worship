@@ -356,6 +356,7 @@ left join total t on t.church_id = e.church_id;
 3. Carrega as **igrejas** do usuário (`church_members` + `churches`); para `system_admin`, todas.
 4. Define a **igreja ativa** (`localStorage['churchId']` ou a 1ª) e expõe `window.ACTIVE_CHURCH`,
    `window.ACTIVE_CHURCH_ID`, `window.MY_CHURCHES`, `window.isAdmin()` (= `system_admin` **ou** admin da igreja ativa).
+   Obs.: `system_admin` **sem nenhuma igreja** não é bloqueado — cai em `#/admin`, que mostra o formulário de criar a 1ª.
 5. Monta o **seletor de igreja** e o botão de **tema**; mostra os itens `.admin-only` se `isAdmin()`.
 6. `render()` = hash routing → a view da rota executa `render(el, arg)` (async).
 
